@@ -7,7 +7,8 @@ HList is one Spring Boot application with one H2 database. It serves three kinds
 - the desktop pages (plain HTML/JS in `src/main/resources/static/`) at `/`;
 - AI assistants, over the Model Context Protocol at `/mcp`.
 
-The endpoints are listed in [api.md](api.md). The code is in `src/main/java/com/abcconsulting/slme/server/`;
+The endpoints are listed in [api.md](api.md), and connecting each assistant is in
+[connecting-assistants.md](connecting-assistants.md). The code is in `src/main/java/com/abcconsulting/slme/server/`;
 package names below are relative to that.
 
 ```
@@ -88,7 +89,8 @@ There are two kinds of credential, and each works only where it is safe.
 - Tokens look like `hlist_` followed by 32 random bytes. They are shown once and stored as SHA-256 hashes in
   `access_token`, with at most 20 per user.
 - `assistant/AccessTokenFilter` accepts a token only on `/mcp`, so a leaked token can't change the password,
-  manage passkeys or create more tokens.
+  manage passkeys or create more tokens. The header can be `Bearer hlist_...` or just `hlist_...`, because some
+  clients, such as the xAI API, don't say whether they add `Bearer `.
 - `/mcp` accepts only token sign-ins and never a session cookie. A malicious page therefore can't use a signed-in
   browser to call it, and it needs no CSRF token.
 - Tokens don't expire. Users remove them in the Account sheet, which shows when each was last used.

@@ -151,6 +151,18 @@ class McpTests {
     }
 
     @Test
+    void acceptsTheTokenWithoutBearer() throws Exception {
+        String token = token(createUser());
+        mockMvc.perform(post("/mcp").header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/mcp").header("Authorization", "hlist_wrong").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/items").header("Authorization", token)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void speaksTheMcpHandshake() throws Exception {
         String token = token(createUser());
         rpc(token, "initialize", Map.of("protocolVersion", "2025-03-26", "capabilities", Map.of(),

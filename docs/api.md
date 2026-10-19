@@ -7,7 +7,7 @@ Every endpoint the server answers. [architecture.md](architecture.md) explains t
 
 - **Public**: no sign-in.
 - **User**: signed in with the session or remember-me cookie, or with Basic credentials.
-- **Token**: `Authorization: Bearer hlist_...`.
+- **Token**: `Authorization: Bearer hlist_...`, or the bare `hlist_...` token.
 - **OAuth client**: an assistant's server, with no cookies and no CSRF token.
 
 **Conventions:**
