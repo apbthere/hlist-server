@@ -53,7 +53,9 @@ This repository is the server. The iOS-style mobile client is
             H2 (file database)     Store sites, Open Food Facts
 ```
 
-The client and API share one origin, so sign-in is a plain session cookie with no CORS. A few things worth a look:
+The client and API share one origin, so sign-in is a plain session cookie with no CORS.
+[docs/architecture.md](docs/architecture.md) covers the request flow, the security model, live updates and the
+SSRF policy; [docs/api.md](docs/api.md) lists every endpoint. A few things worth a look:
 
 - **MCP server written from the spec** ([assistant/](src/main/java/com/abcconsulting/slme/server/assistant/)):
   no SDK, just a JSON-RPC controller, tool schemas and server instructions that teach the assistant a workflow
