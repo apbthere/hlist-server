@@ -47,6 +47,10 @@ first. CI (`.github/workflows/ci.yml`) runs `./mvnw verify` on Java 25.
 - `web/`: `SafeDownloader` and `AddressPolicy`, the only way the server fetches outside URLs (HTTPS only, public
   addresses only, checked again on every redirect, size and time limits). Use it for any new outbound fetch.
 - `assistant/`: the MCP server for AI assistants (see below).
+- `demo/`: `DemoData` seeds an empty database with the demo account (demo/demo), lists and a past trip when
+  `hlist.demo=true` (env `HLIST_DEMO`, set by the Dockerfile's `demo` stage and `compose.demo.yml`), then fetches
+  product photos in the background. It never touches a database that has accounts. The production image must
+  stay the Dockerfile's last stage.
 
 ## Passkeys
 

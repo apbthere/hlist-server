@@ -24,7 +24,7 @@ WORKDIR /workspace
 COPY . .
 RUN --mount=type=cache,target=/root/.m2 ./mvnw -DskipTests package
 
-FROM eclipse-temurin:25-jre
+FROM eclipse-temurin:25-jre AS runtime
 
 WORKDIR /app
 COPY --from=build /workspace/target/server-*.jar app.jar
@@ -43,3 +43,11 @@ ENV HLIST_BUILD_SERVER_COMMIT=$SERVER_COMMIT \
 
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+# Demo (compose.demo.yml, or --target demo): an empty database gets a demo account and sample lists.
+FROM runtime AS demo
+ENV HLIST_DEMO=true
+
+# The production image. It must stay the last stage: builds without --target (compose.yml,
+# deploy/qnap/build-image.sh, CI) build the last one.
+FROM runtime
