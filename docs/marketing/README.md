@@ -46,6 +46,25 @@ phone; square suits the Projects section.
 >
 > #AI #MCP #SpringBoot #Java #Vue #SelfHosted
 
+## Carousel post
+
+LinkedIn asks for a document title and a description (500 characters at most) when you upload the PDF.
+
+**Document title:** HList: a shopping list your AI can use
+
+**Description** (439 characters):
+
+> My AI assistant couldn't see my shopping list, so I built one it can use.
+>
+> HList is a self-hosted shopping list with a built-in MCP server. Ask Claude to "add the usual oat milk to my Costco
+> list" and it finds the list, reuses past purchases and adds it with a photo. Every device updates instantly.
+>
+> Java 25 · Spring Boot 4 · MCP + OAuth 2.1 · SSE · Vue 3 + Ionic
+>
+> Open source (MIT): github.com/apbthere/hlist-server
+>
+> #AI #MCP #SpringBoot
+
 ## Projects description
 
 > HList is a self-hosted shopping list with a built-in MCP server, so Claude, ChatGPT or Grok can read your lists
