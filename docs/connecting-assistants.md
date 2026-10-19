@@ -158,10 +158,12 @@ changes something, such as `add_item_to_list`. It doesn't ask for the tools that
 
 1. Open [grok.com/connectors](https://grok.com/connectors).
 2. Click **New Connector**, then **Custom**.
-3. Enter `https://<your-host>/mcp` and complete the sign-in: HList's page opens; sign in and click **Allow**.
+3. Enter `https://<your-host>/mcp`. Grok signs in by OAuth and registers itself, so there's no token to paste:
+   HList's page opens; sign in and click **Allow**.
 
-Grok then finds HList's tools and uses them when your question is about your lists. On Grok Business and
-Enterprise, an admin adds the connector first. xAI's guide: [Connectors](https://docs.x.ai/grok/connectors).
+Grok then finds HList's tools and uses them when your question is about your lists, e.g. "What do I have in my
+Publix shopping list?" The connector works in the Grok apps too. On Grok Business and Enterprise, an admin adds
+the connector first. xAI's guide: [Connectors](https://docs.x.ai/grok/connectors).
 
 **With the xAI API**, pass an access token as the MCP tool's `authorization`. HList accepts the token with or
 without `Bearer ` in front, so either form works:
