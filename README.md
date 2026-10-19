@@ -7,6 +7,20 @@ checks what you've bought before, and adds the right product with its brand, dep
 This repository is the server. The iOS-style mobile client is
 [hlist-client](https://github.com/apbthere/hlist-client).
 
+<p align="center">
+  <img src="docs/images/lists.png" width="200" alt="Lists: Costco, Publix and Target lists with store icons">
+  <img src="docs/images/list-items.png" width="200" alt="A Costco list grouped by department, with product photos">
+  <img src="docs/images/item-editor.png" width="200" alt="Editing an item: photo, quantity, department, brand and notes">
+  <img src="docs/images/account-assistant.png" width="200" alt="Account: Claude connected as an AI assistant">
+</p>
+
+<p align="center">
+  <img src="docs/images/demo.gif" width="820"
+    alt="An assistant asks HList for the Costco list and past oat milk purchases, adds it, and it appears in the app at once">
+  <br>
+  <sub>The MCP calls an assistant makes for "add the usual oat milk to my Costco list"; the app updates live.</sub>
+</p>
+
 ## Tech stack
 
 | Area | Technologies |
