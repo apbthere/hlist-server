@@ -1,5 +1,7 @@
 # HList
 
+[![CI](https://github.com/apbthere/hlist-server/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/apbthere/hlist-server/actions/workflows/ci.yml)
+
 A self-hosted shopping list app with a built-in **MCP server**, so Claude, ChatGPT or any other AI assistant can
 read your lists and add items to them. Say "add paper towels to my Costco list" and the assistant finds the list,
 checks what you've bought before, and adds the right product with its brand, department and photo.
@@ -139,3 +141,11 @@ For HTTPS on a home server, see [deploy/qnap/README.md](deploy/qnap/README.md) (
 cd ../hlist-client && npm test      # client unit tests
 npm run e2e                         # client end-to-end tests against a real server
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests and pull request conventions.
+
+## License
+
+[MIT](LICENSE)
