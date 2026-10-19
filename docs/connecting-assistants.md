@@ -75,27 +75,38 @@ Without the app, you can create one with `POST /api/users/me/access-tokens`, as 
 
 ## Claude (claude.ai, Claude Desktop, the mobile apps)
 
-Connectors are tied to your Claude account. Once you add HList on claude.ai, it also works in Claude Desktop, the
-Claude mobile apps and Claude Code. Custom connectors work on every plan; the Free plan allows one.
+Connectors are tied to your Claude account. Once you add HList, it works in claude.ai, Claude Desktop, the Claude
+mobile apps and Claude Code. You can add it on claude.ai or in the Claude iPhone app's settings. Custom connectors
+work on every plan; the Free plan allows one.
 
 **Pro and Max:**
 
-1. On claude.ai, open **Customize → Connectors**.
+1. On claude.ai, open **Customize → Connectors**. In the iPhone app, open the connector settings.
 2. Click **+ Add**, then **Add custom connector**.
 3. Name it **HList**, enter `https://<your-host>/mcp` and click **Continue**.
-4. Review the authentication settings Claude detects, and click **Continue**:
+4. Claude checks the server and picks the right settings itself, marking them **Detected**. Keep them and click
+   **Continue**:
    - **Authentication:** **Sign in now**.
-   - **OAuth client:** choose **Register automatically**. HList supports automatic (dynamic) client
-     registration, but not "Use Claude's published identity".
+   - **OAuth client:** **Register automatically**. Don't choose **Use Claude's published identity**: it needs a
+     server that supports CIMD, and HList doesn't.
    - **Request headers:** leave empty.
 5. Click **Add**. HList's sign-in page opens: sign in and click **Allow**.
+
+<p align="center">
+  <img src="images/assistants/claude-authentication.png" width="260" alt="Claude's Authentication choice, with Sign in now marked Detected">
+  <img src="images/assistants/claude-oauth-client.png" width="260" alt="Claude's OAuth client choice, with Register automatically marked Detected">
+  <img src="images/assistants/claude-connector-added.png" width="260" alt="Claude's connector list after adding HList, showing its 8 tools">
+</p>
+
+When it's done, **HList** is in your connectors list with its 8 tools.
 
 **Team and Enterprise:** an Owner adds it under **Organization settings → Connectors → Add → Custom → Web**, with
 the same settings. Each member then finds **HList** under **Customize → Connectors** and clicks **Connect** to sign
 in with their own HList account.
 
-**Using it:** in a chat, click **+** at the lower left, open **Connectors** and make sure **HList** is on. Then ask,
-e.g. "What's on my Costco list?"
+**Using it:** just ask, e.g. "What's on my Costco list?" Claude finds HList's tools by itself ("Searching
+available tools: hlist"). It works in voice mode too. If Claude doesn't use HList, click **+** at the lower left,
+open **Connectors** and make sure **HList** is on.
 
 Anthropic's guide: [Get started with custom connectors using remote MCP](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
 
@@ -221,8 +232,8 @@ NAS. Lines look like `Assistant request POST /mcp -> 401 (...)`.
 
 **The sign-in page shows an error**
 - *"This app isn't registered with HList. Connect it again."*: the assistant used a registration HList doesn't
-  have. For Claude, choose **Register automatically** (not "Use Claude's published identity"). For others, remove
-  the connector and add it again.
+  have. For Claude, choose **Register automatically**, not "Use Claude's published identity" (CIMD, which HList
+  doesn't support). For others, remove the connector and add it again.
 - *"This sign-in has expired. Start connecting again from the app."*: approvals wait 15 minutes, and a server
   restart clears them. Start connecting again from the assistant.
 - *"Invalid username or password"*: usernames aren't case-sensitive, but passwords are. You can also use
