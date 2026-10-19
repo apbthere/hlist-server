@@ -163,7 +163,8 @@ All of them go through `web/SafeDownloader`, so the server can't be used to reac
 
 The check resolves the host itself, and Java's `HttpClient` resolves it again when it connects. A hostile DNS
 server could answer with a public address the first time and a private one the second (DNS rebinding). Pinning
-the checked address for the connection would close that gap.
+the checked address for the connection would close that gap
+([#13](https://github.com/apbthere/hlist-server/issues/13)).
 
 ## Scheduled jobs
 
