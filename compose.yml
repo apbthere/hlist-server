@@ -1,0 +1,16 @@
+services:
+  server:
+    build:
+      context: .
+      additional_contexts:
+        # The mobile client repository, built into the image and served at /app/.
+        client: ../hlist-client
+    ports:
+      - "8080:8080"
+    environment:
+      H2_DB_PATH: /app/data/server
+    volumes:
+      - server-data:/app/data
+
+volumes:
+  server-data:

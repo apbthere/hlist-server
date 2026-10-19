@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HList</title>
+  <!-- Entry point: phones and tablets get the mobile app (/app/), desktops get the classic pages. -->
+  <script src="ui-choice.js"></script>
+  <script>window.location.replace(hlistUi.choose() === "mobile" ? "/app/" : "login.html");</script>
+</head>
+<body>
+  <noscript>HList needs JavaScript. <a href="login.html">Continue to sign in</a>.</noscript>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# HList on a QNAP NAS behind Caddy, which gets and renews a free Let's Encrypt certificate.
+# See README.md in this folder. Settings come from .env next to this file.
+name: hlist
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    # QTS itself uses 80/443/8080, so Caddy listens on other NAS ports; the router maps the
+    # internet's 80 and 443 to them.
+    ports:
+      - "${HTTP_PORT:-8880}:80"
+      - "${HTTPS_PORT:-8443}:443"
+    command: ["caddy", "reverse-proxy", "--from", "${HLIST_DOMAIN:?set HLIST_DOMAIN in .env}", "--to", "server:8080"]
+    volumes:
+      # Certificates live here; keep this volume so restarts don't request new ones.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - server
+
+  server:
+    image: hlist:latest
+    restart: unless-stopped
+    # Not published on the NAS: only reachable through Caddy.
+    environment:
+      H2_DB_PATH: /app/data/server
+      HLIST_INVITE_CODE: ${HLIST_INVITE_CODE:?set HLIST_INVITE_CODE in .env}
+      # Passkeys belong to this domain; they only work on pages served from it.
+      HLIST_DOMAIN: ${HLIST_DOMAIN}
+      # Trust Caddy's X-Forwarded-* headers so the app knows requests arrived over HTTPS.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+      SERVER_SERVLET_SESSION_COOKIE_SECURE: "true"
+      SPRING_H2_CONSOLE_ENABLED: "false"
+    volumes:
+      - server-data:/app/data
+
+volumes:
+  caddy-data:
+  caddy-config:
+  server-data:

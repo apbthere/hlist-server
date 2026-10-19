@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#193f31">
+  <title>HList | List Items</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --paper: #f1f2ec;
+      --surface: #fbfcf7;
+      --ink: #202a24;
+      --muted: #647168;
+      --line: #cbd2c8;
+      --green: #245941;
+      --green-dark: #193f31;
+      --lime: #d8e66a;
+      --coral: #c95037;
+      --display: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+      --body: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; min-height: 100vh; color: var(--ink); background: var(--paper); background-image: linear-gradient(rgba(32, 42, 36, .035) 1px, transparent 1px); background-size: 100% 28px; font-family: var(--body); font-size: 14px; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; min-height: 62px; padding: 0 5vw; color: #f8f8ef; background: var(--green-dark); border-bottom: 4px solid var(--lime); }
+    .header-actions { display: flex; align-items: center; gap: 8px; }
+    .header-actions .button.secondary { color: #f8f8ef; border-color: #607a6e; }
+    .header-user { color: #c2d0c6; font-size: 11px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark { display: grid; place-items: center; width: 30px; height: 30px; color: var(--green-dark); background: var(--lime); border-radius: 50%; font-family: var(--display); font-weight: 700; }
+    .brand-name { font-weight: 750; letter-spacing: .04em; }
+    .topbar-note { color: #c2d0c6; font-size: 11px; text-transform: uppercase; }
+    .page { width: min(980px, 92vw); margin: 0 auto; }
+    .intro { display: flex; align-items: end; justify-content: space-between; gap: 24px; padding: 34px 0 22px; border-bottom: 1px solid var(--line); }
+    .eyebrow, .section-kicker { margin: 0 0 8px; color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 0; font-family: var(--display); font-size: clamp(30px, 4vw, 42px); font-weight: 500; line-height: 1.08; }
+    h1 span { color: var(--green); font-style: italic; }
+    h2 { margin-bottom: 0; font-family: var(--display); font-size: 23px; font-weight: 500; }
+    .api-indicator { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+    .api-dot { width: 9px; height: 9px; border-radius: 50%; background: #a0aaa1; }
+    .api-dot.online { background: #3b8b5c; box-shadow: 0 0 0 3px rgba(59, 139, 92, .14); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--line); }
+    .list-context { margin: 0; color: var(--muted); }
+    .list-date { margin-left: 4px; color: var(--muted); font-size: 13px; }
+    .store-icon { width: 24px; height: 24px; margin: 0 8px 0 4px; vertical-align: -5px; border-radius: 6px; object-fit: contain; }
+    .store-icon.loaded { background: #fff; box-shadow: 0 0 0 1px var(--line); }
+    .list-context strong { color: var(--ink); font-family: var(--display); font-size: 22px; font-weight: 500; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 14px; color: white; background: var(--green); border: 1px solid var(--green); border-radius: 3px; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .button:hover:not(:disabled) { background: var(--green-dark); }
+    .button.secondary { color: var(--green-dark); background: transparent; border-color: var(--line); }
+    .button.secondary:hover:not(:disabled) { background: #e6ebe2; }
+    .button.danger { color: var(--coral); background: transparent; border-color: #d8a89d; }
+    .button.danger:hover:not(:disabled) { background: #f7e8e3; }
+    .button.small { min-height: 30px; padding: 0 9px; font-size: 11px; }
+    .item-form { display: grid; grid-template-columns: 1.1fr .45fr .85fr .75fr 1.2fr auto; align-items: end; gap: 9px; margin: 22px 0; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+    .name-field { position: relative; min-width: 0; }
+    label { display: block; min-width: 0; color: var(--muted); font-size: 11px; font-weight: 700; }
+    label span { display: block; margin-bottom: 5px; }
+    input, select { display: block; width: 100%; min-width: 0; min-height: 38px; padding: 8px 10px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 3px; outline: none; }
+    input:focus, select:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(36, 89, 65, .13); }
+    .suggestions { position: absolute; top: 63px; right: 0; left: 0; z-index: 3; overflow: hidden; background: var(--surface); border: 1px solid var(--green); box-shadow: 0 8px 20px rgba(20, 34, 26, .14); }
+    .suggestion-button { display: block; width: 100%; padding: 10px; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid var(--line); text-align: left; }
+    .suggestion-button:last-child { border-bottom: 0; }
+    .suggestion-button:hover, .suggestion-button:focus { background: #e6ebe2; outline: none; }
+    .suggestion-name { display: block; font-weight: 700; }
+    .suggestion-meta { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .section-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 14px; }
+    .hint { color: var(--muted); font-size: 12px; }
+    .empty { padding: 26px 14px; color: var(--muted); background: rgba(255,255,255,.45); border: 1px dashed var(--line); text-align: center; }
+    .item-table { width: 100%; border-collapse: collapse; }
+    .item-table th { padding: 8px 7px; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 10px; font-weight: 600; text-align: left; text-transform: uppercase; }
+    .item-table td { padding: 10px 7px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+    .item-table td:last-child { text-align: right; }
+    .item-name { font-weight: 650; }
+    .item-note { display: block; margin-top: 3px; color: var(--muted); font-size: 11px; }
+    .item-actions { display: flex; justify-content: end; gap: 6px; }
+    .item-check { display: inline-block; width: 17px; height: 17px; min-height: 0; margin: 0 8px 0 0; padding: 0; vertical-align: -3px; accent-color: var(--green); }
+    .item-table .department-row th { padding: 20px 7px 6px; color: var(--green); border-bottom: 1px solid var(--line); font-family: var(--display); font-size: 17px; font-weight: 500; text-transform: none; }
+    .item-table tbody .department-row:first-child th { padding-top: 12px; }
+    .department-count { margin-left: 6px; color: var(--muted); font-family: var(--body); font-size: 11px; font-weight: 600; }
+    .item-row-completed .item-name { color: var(--muted); text-decoration: line-through; }
+    .toast { position: fixed; right: 22px; bottom: 20px; z-index: 2; max-width: min(440px, calc(100vw - 32px)); padding: 12px 16px; color: white; background: var(--green-dark); border-left: 4px solid var(--lime); box-shadow: 0 8px 24px rgba(20, 34, 26, .18); }
+    .toast.error { border-color: #ff8e70; }
+    .dialog { width: min(420px, 90vw); padding: 24px; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--lime); box-shadow: 0 12px 32px rgba(20, 34, 26, .2); }
+    .dialog::backdrop { background: rgba(25, 63, 49, .3); }
+    .dialog h2 { margin: 0 0 18px; }
+    .dialog label { margin-bottom: 12px; }
+    .dialog-actions { display: flex; justify-content: end; gap: 8px; margin-top: 18px; }
+    @media (max-width: 850px) { .item-form { grid-template-columns: 1fr 1fr; } .item-form .button { grid-column: 2; } }
+    @media (max-width: 600px) { .intro, .toolbar { align-items: start; flex-direction: column; } .item-table thead th:nth-child(3), .item-table td:nth-child(3) { display: none; } .item-actions { flex-wrap: wrap; } }
+    @media (max-width: 420px) { .item-form { grid-template-columns: 1fr; } .item-form .button { grid-column: 1; } }
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">H</span><span class="brand-name">HLIST</span></div><div class="header-actions"><span id="header-user" class="header-user"></span><a class="button secondary small" href="/app/add" title="Set up the Add to HList bookmark">Add from websites</a><a class="button secondary small" href="console.html">Console</a><button id="change-password-open" class="button secondary small" type="button">Change password</button><button id="logout" class="button danger small" type="button">Log out</button></div></header>
+  <main class="page">
+    <section class="intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">Selected list / item management</p><h1 id="page-title">List <span>items</span></h1></div>
+      <div class="api-indicator"><span id="api-dot" class="api-dot"></span><span id="api-status">Connecting...</span></div>
+    </section>
+    <section class="toolbar">
+      <p class="list-context">Managing <span id="list-store"></span><strong id="list-name">Selected list</strong> <span id="list-date" class="list-date"></span></p>
+      <a class="button secondary" href="shopping-lists.html">Back to lists</a>
+    </section>
+    <section aria-labelledby="items-heading">
+      <form id="item-form" class="item-form">
+        <div class="name-field"><label><span>Item name</span><input id="item-name" required maxlength="255" placeholder="e.g. Milk by Horizon in Dairy" title="Smart format: name by brand in department. Brand and department are optional, e.g. &quot;Milk by Horizon&quot; or &quot;Milk in Dairy&quot;." autocomplete="off"></label><div id="item-suggestions" class="suggestions" role="listbox" hidden></div></div>
+        <label><span>Quantity</span><input id="item-quantity" type="number" min="1" step="1" value="1" required></label>
+        <label><span>Department</span><select id="item-department"><option value="">None</option></select></label>
+        <label><span>Brand</span><select id="item-brand"><option value="">None</option></select></label>
+        <label><span>Comment</span><input id="item-comment" maxlength="1000" placeholder="Optional"></label>
+        <button id="save-item" class="button" type="submit">Add item</button>
+      </form>
+      <div class="section-head"><h2 id="items-heading">Items</h2><span id="item-count" class="hint"></span></div>
+      <div id="items-empty" class="empty">No items in this list yet.</div>
+      <table id="item-table" class="item-table" hidden>
+        <thead><tr><th>Item</th><th>Quantity</th><th>Brand</th><th>Actions</th></tr></thead>
+        <tbody id="item-rows"></tbody>
+      </table>
+    </section>
+  </main>
+  <dialog id="password-dialog" class="dialog"><form id="password-form"><h2>Change password</h2><label><span>Current password</span><input id="current-password" type="password" required></label><label><span>New password</span><input id="new-password" type="password" required></label><div class="dialog-actions"><button id="password-cancel" class="button secondary" type="button">Cancel</button><button class="button" type="submit">Update password</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="api.js"></script>
+  <script>
+    (() => {
+      const session = JSON.parse(sessionStorage.getItem("hlist-session") || "null");
+      if (!session?.selectedList) {
+        window.location.replace("shopping-lists.html");
+        return;
+      }
+      const state = { selectedList: session.selectedList, items: [], previousItems: [], departments: new Map(), brands: new Map(), editingItem: null };
+      const byId = (id) => document.getElementById(id);
+      const api = hlist.api;
+      let toastTimer;
+
+      function saveSession() {
+        sessionStorage.setItem("hlist-session", JSON.stringify({ selectedList: state.selectedList }));
+      }
+
+      function notify(message, isError = false) {
+        const toast = byId("toast");
+        toast.textContent = message;
+        toast.classList.toggle("error", isError);
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { toast.hidden = true; }, 4200);
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+      }
+
+      function soundex(value) {
+        const letters = String(value ?? "").toUpperCase().replace(/[^A-Z]/g, "");
+        if (!letters) return "";
+        const codes = { B: "1", F: "1", P: "1", V: "1", C: "2", G: "2", J: "2", K: "2", Q: "2", S: "2", X: "2", Z: "2", D: "3", T: "3", L: "4", M: "5", N: "5", R: "6" };
+        let result = letters[0];
+        let previousCode = codes[letters[0]] || "";
+        for (const letter of letters.slice(1)) {
+          const code = codes[letter] || "";
+          if (code && code !== previousCode) result += code;
+          previousCode = code;
+          if (result.length === 4) break;
+        }
+        return (result + "000").slice(0, 4);
+      }
+
+      function isPhoneticMatch(name, query) {
+        const normalizedName = name.toLowerCase();
+        const normalizedQuery = query.toLowerCase();
+        return normalizedName.includes(normalizedQuery)
+          || normalizedName.split(/\s+/).some((word) => word.startsWith(normalizedQuery))
+          || soundex(name) === soundex(query)
+          || name.split(/\s+/).some((word) => soundex(word) === soundex(query));
+      }
+
+      // Item-name shortcut: "<item> by <brand> in <department>", "<item> by <brand>" (split at the last " by ",
+      // departmentName null) or "<item> in <department>" (split at the last " in ", brandName null).
+      function parseItemPattern(value) {
+        const trimmed = value.trim();
+        const full = trimmed.match(/^(.+?)\s+by\s+(.+?)\s+in\s+(.+)$/i);
+        if (full) return { itemName: full[1].trim(), brandName: full[2].trim(), departmentName: full[3].trim() };
+        const brandOnly = trimmed.match(/^(.+)\s+by\s+(.+)$/i);
+        if (brandOnly) return { itemName: brandOnly[1].trim(), brandName: brandOnly[2].trim(), departmentName: null };
+        const departmentOnly = trimmed.match(/^(.+)\s+in\s+(.+)$/i);
+        if (departmentOnly) return { itemName: departmentOnly[1].trim(), brandName: null, departmentName: departmentOnly[2].trim() };
+        return null;
+      }
+
+      function normalizeItemName(value) {
+        return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+      }
+
+      async function handleDuplicateItem() {
+        if (state.editingItem !== null) return false;
+        const itemName = byId("item-name").value.trim();
+        const duplicate = state.items.find((item) => normalizeItemName(item.itemName) === normalizeItemName(itemName));
+        if (!duplicate) return false;
+        if (!window.confirm(`"${duplicate.itemName}" is already in this list. Increase its quantity instead?`)) return true;
+        const amount = window.prompt(`How many should be added to the current quantity (${duplicate.quantity})?`, "1");
+        if (amount === null) return true;
+        const increase = Number(amount);
+        if (!Number.isInteger(increase) || increase < 1) {
+          notify("Enter a whole number greater than zero.", true);
+          return true;
+        }
+        try {
+          await api(`/api/shopping-lists/${state.selectedList.shoppingListId}/items/${duplicate.itemId}`, {
+            method: "PUT",
+            body: {
+              name: duplicate.itemName,
+              quantity: (duplicate.quantity ?? 1) + increase,
+              departmentId: duplicate.departmentId,
+              brandId: duplicate.brandId,
+              comment: duplicate.itemComment
+            }
+          });
+          resetItemForm();
+          await loadItems();
+          notify(`Quantity increased to ${(duplicate.quantity ?? 1) + increase}`);
+        } catch (error) { notify(error.message, true); }
+        return true;
+      }
+
+      function findCatalogMatch(catalog, name) {
+        const normalizedName = name.toLowerCase();
+        return [...catalog.entries()].find(([, value]) => value.toLowerCase() === normalizedName
+          || soundex(value) === soundex(name))?.[0] ?? null;
+      }
+
+      function addCatalogOption(selectId, id, name) {
+        const select = byId(selectId);
+        if (![...select.options].some((option) => Number(option.value) === id)) select.add(new Option(name, id));
+      }
+
+      // Capitalizes words typed all in lowercase ("frozen foods" -> "Frozen Foods"), keeping casing like "iPhone".
+      function capitalizeWords(value) {
+        return value.trim().replace(/\s+/g, " ").split(" ")
+          .map((word) => word === word.toLowerCase() ? word.charAt(0).toUpperCase() + word.slice(1) : word)
+          .join(" ");
+      }
+
+      async function resolveCatalogValue(type, name) {
+        const catalog = type === "brand" ? state.brands : state.departments;
+        const existingId = findCatalogMatch(catalog, name);
+        if (existingId !== null) return existingId;
+        const created = await api(`/api/${type}s`, { method: "POST", body: { name: capitalizeWords(name) } });
+        const id = type === "brand" ? created.brandId : created.departmentId;
+        const createdName = type === "brand" ? created.brandName : created.departmentName;
+        catalog.set(id, createdName);
+        addCatalogOption(`item-${type}`, id, createdName);
+        return id;
+      }
+
+      // Splits "<item> by <brand> in <department>" into the form fields. Runs when the name field loses focus
+      // and again before saving (Enter submits without a blur). Concurrent calls share one run, so a blur
+      // followed immediately by a submit can't create the same brand or department twice.
+      // Resolves to false when the brand or department couldn't be resolved.
+      let parsingItemName = null;
+      function parseItemNameField() {
+        parsingItemName ??= applyItemPattern().finally(() => { parsingItemName = null; });
+        return parsingItemName;
+      }
+
+      // Applies the item-name shortcut to the form. The full "<item> by <brand> in <department>" form creates
+      // whatever doesn't exist yet. The single-part forms ("<item> by <brand>", "<item> in <department>") only use
+      // existing entries unless askAboutNewEntries is set (when saving): then a new brand or department is created
+      // only if the user confirms it, since "by" and "in" are often part of a name ("pigs in a blanket").
+      // A brand or department picked by hand is kept when the shortcut doesn't mention it.
+      async function applyItemPattern(askAboutNewEntries = false) {
+        const typed = byId("item-name").value.trim();
+        const parsed = parseItemPattern(typed);
+        if (!parsed) return true;
+        const singlePart = parsed.brandName === null || parsed.departmentName === null;
+        try {
+          const resolved = {};
+          for (const [type, name] of [["brand", parsed.brandName], ["department", parsed.departmentName]]) {
+            if (name === null) continue;
+            if (singlePart && findCatalogMatch(type === "brand" ? state.brands : state.departments, name) === null) {
+              if (!askAboutNewEntries) return true;
+              const confirmed = window.confirm(`Is "${name}" a ${type}?\n\n`
+                + `OK: create the ${type} "${capitalizeWords(name)}" for "${parsed.itemName}".\n`
+                + `Cancel: keep "${typed}" as the item name.`);
+              if (!confirmed) return true;
+            }
+            resolved[type] = await resolveCatalogValue(type, name);
+          }
+          byId("item-name").value = parsed.itemName;
+          if (resolved.brand !== undefined) byId("item-brand").value = resolved.brand;
+          if (resolved.department !== undefined) byId("item-department").value = resolved.department;
+          renderSuggestions();
+          notify(`Parsed ${[
+            resolved.brand !== undefined ? `${state.brands.get(resolved.brand)} brand` : null,
+            resolved.department !== undefined ? `${state.departments.get(resolved.department)} department` : null
+          ].filter(Boolean).join(" and ")}`);
+          return true;
+        } catch (error) {
+          notify(error.message, true);
+          return false;
+        }
+      }
+
+      function renderSuggestions() {
+        const query = byId("item-name").value.trim();
+        const host = byId("item-suggestions");
+        if (query.length < 1) {
+          host.hidden = true;
+          host.replaceChildren();
+          return;
+        }
+        const seenSuggestions = new Set();
+        const matches = state.previousItems
+          .filter((item) => isPhoneticMatch(item.itemName, query))
+          .filter((item) => {
+            const key = `${item.itemName.trim().toLowerCase()}|${item.departmentId ?? ""}|${item.brandId ?? ""}`;
+            if (seenSuggestions.has(key)) return false;
+            seenSuggestions.add(key);
+            return true;
+          })
+          .sort((first, second) => Number(second.itemName.toLowerCase().startsWith(query.toLowerCase())) - Number(first.itemName.toLowerCase().startsWith(query.toLowerCase())))
+          .slice(0, 6);
+        host.innerHTML = matches.map((item) => `
+          <button class="suggestion-button" type="button" data-suggestion-item="${item.itemId}" role="option">
+            <span class="suggestion-name">${escapeHtml(item.itemName)}</span>
+            <span class="suggestion-meta">${escapeHtml(state.departments.get(item.departmentId) || "No department")} · ${escapeHtml(state.brands.get(item.brandId) || "No brand")}</span>
+          </button>`).join("");
+        host.hidden = matches.length === 0;
+      }
+
+      // Groups items by department, departments alphabetically with items lacking a (known) department last.
+      // Items keep their list order within a group.
+      function groupItemsByDepartment(items) {
+        const groups = new Map();
+        for (const item of items) {
+          const name = state.departments.get(item.departmentId) ?? null;
+          if (!groups.has(name)) groups.set(name, []);
+          groups.get(name).push(item);
+        }
+        return [...groups.entries()]
+          .sort(([first], [second]) => first === null ? 1 : second === null ? -1 : first.localeCompare(second, undefined, { sensitivity: "base" }))
+          .map(([name, groupItems]) => ({ title: name ?? "No department", items: groupItems }));
+      }
+
+      function renderItemRow(item) {
+        return `
+          <tr class="${item.completed ? "item-row-completed" : ""}">
+            <td><input class="item-check" type="checkbox" data-toggle-item="${item.itemId}" aria-label="Mark ${escapeHtml(item.itemName)} as done" ${item.completed ? "checked" : ""}><span class="item-name">${escapeHtml(item.itemName)}</span>${item.itemComment ? `<span class="item-note">${escapeHtml(item.itemComment)}</span>` : ""}</td>
+            <td>${item.quantity}</td>
+            <td>${escapeHtml(state.brands.get(item.brandId) || "—")}</td>
+            <td><div class="item-actions"><button class="button secondary small" type="button" data-edit-item="${item.itemId}">Edit</button><button class="button danger small" type="button" data-delete-item="${item.itemId}">Remove</button></div></td>
+          </tr>`;
+      }
+
+      function renderItems() {
+        const host = byId("item-rows");
+        byId("item-count").textContent = `${state.items.length} item${state.items.length === 1 ? "" : "s"}`;
+        byId("items-empty").hidden = state.items.length > 0;
+        byId("item-table").hidden = state.items.length === 0;
+        host.innerHTML = groupItemsByDepartment(state.items).map((group) => `
+          <tr class="department-row"><th colspan="4" scope="rowgroup">${escapeHtml(group.title)} <span class="department-count">${group.items.length}</span></th></tr>
+          ${group.items.map(renderItemRow).join("")}`).join("");
+      }
+
+      async function loadCatalog() {
+        const [departments, brands] = await Promise.all([api("/api/departments"), api("/api/brands")]);
+        state.departments = new Map(departments.map((department) => [department.departmentId, department.departmentName]));
+        state.brands = new Map(brands.map((brand) => [brand.brandId, brand.brandName]));
+        try {
+          state.previousItems = await api("/api/items");
+        } catch {
+          state.previousItems = [];
+        }
+        fillCatalogSelect("item-department", state.departments);
+        fillCatalogSelect("item-brand", state.brands);
+      }
+
+      // Rebuilds a department/brand menu, keeping the current choice.
+      function fillCatalogSelect(selectId, catalog) {
+        const select = byId(selectId);
+        const selected = select.value;
+        select.replaceChildren(new Option("None", ""));
+        for (const [id, name] of catalog) select.add(new Option(name, id));
+        select.value = [...select.options].some((option) => option.value === selected) ? selected : "";
+      }
+
+      async function reloadCatalogFromServer() {
+        const [departments, brands] = await Promise.all([api("/api/departments"), api("/api/brands")]);
+        state.departments = new Map(departments.map((department) => [department.departmentId, department.departmentName]));
+        state.brands = new Map(brands.map((brand) => [brand.brandId, brand.brandName]));
+        fillCatalogSelect("item-department", state.departments);
+        fillCatalogSelect("item-brand", state.brands);
+        renderItems();
+      }
+
+      async function loadItems() {
+        state.items = await api(`/api/shopping-lists/${state.selectedList.shoppingListId}/items`);
+        const knownItemIds = new Set(state.previousItems.map((item) => item.itemId));
+        state.items.filter((item) => !knownItemIds.has(item.itemId)).forEach((item) => state.previousItems.push(item));
+        state.selectedList.completed = state.items.length > 0 && state.items.every((item) => item.completed);
+        saveSession();
+        renderItems();
+      }
+
+      function resetItemForm() {
+        state.editingItem = null;
+        byId("item-form").reset();
+        byId("save-item").textContent = "Add item";
+        renderSuggestions();
+      }
+
+      byId("item-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        // Finish any parse started by leaving the name field, then ask about a department that doesn't exist yet.
+        if (!(await parseItemNameField()) || !(await applyItemPattern(true))) return;
+        if (await handleDuplicateItem()) return;
+        const departmentId = byId("item-department").value;
+        const brandId = byId("item-brand").value;
+        const body = { name: byId("item-name").value.trim(), quantity: Number(byId("item-quantity").value), departmentId: departmentId ? Number(departmentId) : null, brandId: brandId ? Number(brandId) : null, comment: byId("item-comment").value.trim() || null };
+        try {
+          const path = `/api/shopping-lists/${state.selectedList.shoppingListId}/items${state.editingItem === null ? "" : `/${state.editingItem}`}`;
+          const savedItem = await api(path, { method: state.editingItem === null ? "POST" : "PUT", body });
+          if (state.editingItem === null) {
+            state.previousItems.push(savedItem);
+          } else {
+            const previousItemIndex = state.previousItems.findIndex((item) => item.itemId === state.editingItem);
+            if (previousItemIndex >= 0) state.previousItems[previousItemIndex] = { ...state.previousItems[previousItemIndex], ...savedItem };
+          }
+          notify(state.editingItem === null ? "Item added to list" : "Item updated");
+          resetItemForm();
+          await loadItems();
+        } catch (error) { notify(error.message, true); }
+      });
+
+      byId("item-name").addEventListener("input", renderSuggestions);
+      byId("item-name").addEventListener("blur", parseItemNameField);
+      byId("item-suggestions").addEventListener("click", (event) => {
+        const suggestion = event.target.closest("[data-suggestion-item]");
+        if (!suggestion) return;
+        const item = state.previousItems.find((candidate) => candidate.itemId === Number(suggestion.dataset.suggestionItem));
+        if (!item) return;
+        byId("item-name").value = item.itemName;
+        byId("item-quantity").value = item.quantity ?? 1;
+        byId("item-department").value = item.departmentId ?? "";
+        byId("item-brand").value = item.brandId ?? "";
+        byId("item-comment").value = item.itemComment ?? "";
+        byId("item-suggestions").hidden = true;
+        byId("item-comment").focus();
+      });
+
+      byId("item-rows").addEventListener("click", async (event) => {
+        const completionToggle = event.target.closest("[data-toggle-item]");
+        const editButton = event.target.closest("[data-edit-item]");
+        const deleteButton = event.target.closest("[data-delete-item]");
+        if (completionToggle) {
+          const itemId = Number(completionToggle.dataset.toggleItem);
+          try {
+            await api(`/api/shopping-lists/${state.selectedList.shoppingListId}/items/${itemId}/completion`, { method: "PATCH", body: { completed: completionToggle.checked } });
+            const item = state.items.find((candidate) => candidate.itemId === itemId);
+            if (item) item.completed = completionToggle.checked;
+            renderItems();
+            notify(completionToggle.checked ? "Item marked done" : "Item marked active");
+          } catch (error) { completionToggle.checked = !completionToggle.checked; notify(error.message, true); }
+        } else if (editButton) {
+          const item = state.items.find((candidate) => candidate.itemId === Number(editButton.dataset.editItem));
+          if (!item) return;
+          state.editingItem = item.itemId;
+          byId("item-name").value = item.itemName;
+          byId("item-quantity").value = item.quantity ?? 1;
+          byId("item-department").value = item.departmentId ?? "";
+          byId("item-brand").value = item.brandId ?? "";
+          byId("item-comment").value = item.itemComment ?? "";
+          byId("save-item").textContent = "Save changes";
+          byId("item-name").focus();
+        } else if (deleteButton) {
+          const itemId = Number(deleteButton.dataset.deleteItem);
+          if (!window.confirm("Remove this item from the selected list? The item record will remain.")) return;
+          try {
+            await api(`/api/shopping-lists/${state.selectedList.shoppingListId}/items/${itemId}`, { method: "DELETE" });
+            if (state.editingItem === itemId) resetItemForm();
+            await loadItems();
+            notify("Item removed from list");
+          } catch (error) { notify(error.message, true); }
+        }
+      });
+
+      byId("list-name").textContent = state.selectedList.shoppingListName;
+      byId("list-date").textContent = hlist.formatDate(state.selectedList.createdAt);
+      byId("list-store").innerHTML = hlist.storeIcon(state.selectedList.store);
+      byId("logout").addEventListener("click", () => hlist.logout());
+      byId("change-password-open").addEventListener("click", () => byId("password-dialog").showModal());
+      byId("password-cancel").addEventListener("click", () => { byId("password-form").reset(); byId("password-dialog").close(); });
+      byId("password-form").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          await api("/api/users/me/password", { method: "PUT", body: { currentPassword: byId("current-password").value, newPassword: byId("new-password").value } });
+          byId("password-dialog").close();
+          byId("password-form").reset();
+          notify("Password updated");
+        } catch (error) { notify(error.message, true); }
+      });
+      hlist.currentUser().then((user) => {
+        if (!user) { window.location.replace("login.html"); return; }
+        byId("header-user").textContent = user.username;
+        byId("api-dot").classList.add("online");
+        byId("api-status").textContent = `Authenticated as ${user.username}`;
+      }).catch((error) => notify(error.message, true));
+      loadCatalog().then(loadItems).catch((error) => notify(error.message, true));
+
+      // Changes made on other devices.
+      const reloadItems = hlist.debounced(loadItems);
+      const reloadCatalog = hlist.debounced(reloadCatalogFromServer);
+      hlist.live((event) => {
+        if (event.type === "resume") {
+          reloadCatalog();
+          reloadItems();
+        } else if (event.type === "list-items" && event.listId === state.selectedList.shoppingListId) {
+          reloadItems();
+        } else if (event.type === "catalog") {
+          reloadCatalog();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
