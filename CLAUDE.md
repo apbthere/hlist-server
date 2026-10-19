@@ -73,7 +73,8 @@ and add items (`add_item_to_list`: copy a past item with `fromItemId`, or a new 
 photo). The workflow the assistant should follow is in `McpController.INSTRUCTIONS`.
 
 - Auth: access tokens (`hlist_...`, stored as SHA-256 in `access_token`), created in the mobile client's Account
-  sheet or `POST /api/users/me/access-tokens`. `AccessTokenFilter` accepts `Authorization: Bearer` on `/mcp` only.
+  sheet or `POST /api/users/me/access-tokens`. `AccessTokenFilter` accepts `Authorization: Bearer hlist_...` (or the bare token, for the xAI API) on `/mcp` only.
+  The setup guide for each assistant is `docs/connecting-assistants.md`.
 - Claude Code: `claude mcp add --transport http hlist https://<host>/mcp --header "Authorization: Bearer <token>"`.
 - OAuth (ChatGPT, claude.ai, the Claude apps): `OAuthController`/`OAuthService` implement the MCP authorization spec.
   A 401 from `/mcp` names `/.well-known/oauth-protected-resource/mcp`; clients register themselves at
