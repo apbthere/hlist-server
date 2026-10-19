@@ -11,6 +11,8 @@ The endpoints are listed in [api.md](api.md), and connecting each assistant is i
 [connecting-assistants.md](connecting-assistants.md). The code is in `src/main/java/com/abcconsulting/slme/server/`;
 package names below are relative to that.
 
+![HList architecture: the apps and AI assistants talk to one Spring Boot server](marketing/architecture.png)
+
 ```
  iPhone / iPad (PWA)     Desktop browser       Claude / ChatGPT
    /app/  (Vue)           /  (HTML/JS)          MCP client
