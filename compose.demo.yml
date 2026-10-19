@@ -1,0 +1,24 @@
+# HList with sample data, to try it out:
+#
+#   docker compose -f compose.demo.yml up --build
+#
+# Then open http://localhost:8081/ (or /app/ for the iPhone-style app) and sign in as demo, password demo.
+# It's separate from compose.yml: its own containers and port, and its database lives in memory, so every
+# start begins with fresh demo data. Product photos come from Open Food Facts in the background (internet
+# needed); the lists work without them.
+name: hlist-demo
+
+services:
+  server:
+    build:
+      context: .
+      target: demo
+      additional_contexts:
+        # The mobile client repository, built into the image and served at /app/.
+        client: ../hlist-client
+    ports:
+      - "8081:8080"
+    environment:
+      H2_DB_PATH: /demo-data/server
+    tmpfs:
+      - /demo-data

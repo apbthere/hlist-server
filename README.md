@@ -100,6 +100,23 @@ SSRF policy; [docs/api.md](docs/api.md) lists every endpoint. A few things worth
 
 ## Running it
 
+### Try the demo
+
+With Docker, one command starts HList with sample lists, so you see a populated app:
+
+```sh
+git clone https://github.com/apbthere/hlist-server.git
+git clone https://github.com/apbthere/hlist-client.git
+cd hlist-server && docker compose -f compose.demo.yml up --build
+```
+
+Open http://localhost:8081/app/ (the iPhone-style app) or http://localhost:8081/ (desktop) and sign in as **demo**,
+password **demo**. The demo is separate from a real installation: it has its own containers and port, and its
+database lives in memory, so every start begins fresh. Product photos are fetched from Open Food Facts in the
+background over the first minute or so.
+
+### Your own installation
+
 You need Java 25, plus Node 24 to build the mobile client. Clone both repositories side by side.
 
 ```sh
@@ -123,6 +140,7 @@ Settings (environment variables):
 | `H2_DB_PATH` | Database location (default `./data/server`) |
 | `HLIST_INVITE_CODE` | If set, new accounts need this code |
 | `HLIST_DOMAIN` | Your HTTPS domain, for passkeys |
+| `HLIST_DEMO` | `true` adds the demo account and lists to an empty database (set by `compose.demo.yml`) |
 
 For HTTPS on a home server, see [deploy/qnap/README.md](deploy/qnap/README.md) (Docker + Caddy + Let's Encrypt).
 
