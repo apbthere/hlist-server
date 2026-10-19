@@ -145,3 +145,7 @@ npm run e2e                         # client end-to-end tests against a real ser
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests and pull request conventions.
+
+## License
+
+[MIT](LICENSE)
