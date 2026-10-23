@@ -220,7 +220,12 @@ public class ShoppingTools {
             departmentId = request.department() == null ? past.departmentId() : departmentId(request.department(), departments);
             comment = request.comment() == null ? past.itemComment() : blankToNull(request.comment());
             quantity = request.quantity() == null ? (past.quantity() == null ? 1 : past.quantity()) : request.quantity();
-            photoId = past.photoId();
+            // Another brand is another product, so the past item's photo isn't it.
+            photoId = Objects.equals(brandId, past.brandId()) ? past.photoId() : null;
+            if (photoId == null && past.photoId() != null) {
+                warnings.add("The past item's photo is of another brand, so it wasn't kept. Search the web for the "
+                        + request.brand() + " product's page and give it to set_item_photo.");
+            }
         } else {
             String productName = null;
             String productBrand = null;
@@ -228,9 +233,21 @@ public class ShoppingTools {
             if (request.productUrl() != null && !request.productUrl().isBlank()) {
                 try {
                     PhotoService.ImportedPhoto imported = photos.importFromWeb(username, request.productUrl().strip());
-                    photoId = imported.photoId();
                     productName = imported.title();
                     productBrand = imported.brand();
+                    String otherBrand = otherBrand(imported, request.brand());
+                    if (otherBrand != null) {
+                        warnings.add("The product page is for " + otherBrand + ", not " + request.brand()
+                                + ", so its photo wasn't used. Find the " + request.brand() + " product's page and give it "
+                                + "to set_item_photo, or check with the user which brand they want.");
+                    } else {
+                        photoId = imported.photoId();
+                        if (!pageNamesBrand(imported, request.brand())) {
+                            warnings.add("The product page (\"" + imported.title() + "\") doesn't name " + request.brand()
+                                    + ". If it's another brand's product, find the " + request.brand()
+                                    + " product's page and give it to set_item_photo.");
+                        }
+                    }
                 } catch (RuntimeException failed) {
                     log.info("Couldn't import a photo from {}: {}", request.productUrl(), failed.getMessage());
                     warnings.add("No photo: " + failed.getMessage());
@@ -325,8 +342,14 @@ public class ShoppingTools {
                 .filter(entry -> entry.itemId() == itemId)
                 .findFirst()
                 .orElseThrow(() -> new NoSuchElementException("That item isn't on this list. Read the list again for the item IDs."));
-        long photoId = photos.importFromWeb(username, productUrl.strip()).photoId();
-        photos.setItemPhoto(item.itemId(), photoId, username);
+        PhotoService.ImportedPhoto imported = photos.importFromWeb(username, productUrl.strip());
+        String brand = brandNames().get(item.brandId());
+        String otherBrand = otherBrand(imported, brand);
+        if (otherBrand != null) {
+            throw new IllegalArgumentException("That page is for " + otherBrand + ", not " + brand
+                    + ", so the photo wasn't changed. Find the " + brand + " product's page.");
+        }
+        photos.setItemPhoto(item.itemId(), imported.photoId(), username);
         return shopping.getShoppingItemsByList(listId, username).stream()
                 .filter(entry -> entry.itemId() == itemId)
                 .map(entry -> entry(entry, brandNames(), departmentNames()))
@@ -354,6 +377,27 @@ public class ShoppingTools {
             log.info("No product photo for {} ({}): {}", name, brand, failed.getMessage());
             return java.util.Optional.empty();
         }
+    }
+
+    /**
+     * The brand a product page says it's for, when that isn't the item's brand; null when it is, or when the page
+     * doesn't say. Assistants pick pages from search results without opening them, and a page of another brand gives
+     * the item a photo of the wrong product.
+     */
+    static String otherBrand(PhotoService.ImportedPhoto page, String brand) {
+        return brand == null || brand.isBlank() || page.brand() == null || sameBrand(page.brand(), brand)
+                ? null : page.brand();
+    }
+
+    /** Whether a page that doesn't give its brand at least names the item's brand in the product's name. */
+    static boolean pageNamesBrand(PhotoService.ImportedPhoto page, String brand) {
+        if (brand == null || brand.isBlank() || page.brand() != null || page.title() == null) {
+            return true;
+        }
+        List<String> brandWords = words(brand);
+        String title = " " + normalize(page.title()) + " ";
+        return brandWords.isEmpty() || title.contains(" " + String.join(" ", brandWords) + " ")
+                || brandWords.getFirst().length() >= 4 && title.contains(" " + brandWords.getFirst() + " ");
     }
 
     /** "Kirkland Signature" and "Kirkland" are the same brand; a product may list several ("Charmin, P&G"). */
