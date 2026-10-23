@@ -183,6 +183,43 @@ class McpTests {
     }
 
     @Test
+    void productPagesOfOtherBrandsGiveNoPhoto() throws Exception {
+        String token = token(createUser());
+        String dairyPure = "https://app.example/costco/16377-half-half-quart";
+        String unbranded = "https://app.example/costco/16378-half-half";
+        String landOLakes = "https://app.example/costco/16379-land-o-lakes-half-half";
+        doReturn(new PhotoImporter.Fetched(jpeg(), "Half & Half", "DairyPure")).when(photoImporter).fetchPicture(dairyPure);
+        doReturn(new PhotoImporter.Fetched(jpeg(), "Half & Half Quart", null)).when(photoImporter).fetchPicture(unbranded);
+        doReturn(new PhotoImporter.Fetched(jpeg(), "Land O Lakes Half & Half", null)).when(photoImporter).fetchPicture(landOLakes);
+        long listId = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Costco")),
+                "$.listId")).longValue();
+
+        String wrong = tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Half & Half",
+                "brand", "Land O'Lakes", "productUrl", dairyPure));
+        assertEquals(false, JsonPath.read(wrong, "$.item.hasPhoto"));
+        assertTrue(JsonPath.<String>read(wrong, "$.warnings[0]").contains("for DairyPure, not Land O'Lakes"));
+        Object itemId = JsonPath.read(wrong, "$.item.itemId");
+        toolError(token, "set_item_photo", Map.of("listId", listId, "itemId", itemId, "productUrl", dairyPure))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("DairyPure")));
+
+        String unsure = tool(token, "set_item_photo", Map.of("listId", listId, "itemId", itemId, "productUrl", unbranded));
+        assertEquals(true, JsonPath.read(unsure, "$.hasPhoto"));
+        String doubtful = tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Half & Half",
+                "brand", "Land O'Lakes", "productUrl", unbranded, "allowDuplicate", true));
+        assertEquals(true, JsonPath.read(doubtful, "$.item.hasPhoto"));
+        assertTrue(JsonPath.<String>read(doubtful, "$.warnings[0]").contains("doesn't name Land O'Lakes"));
+        String right = tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Half & Half",
+                "brand", "Land O'Lakes", "productUrl", landOLakes, "allowDuplicate", true));
+        assertTrue(JsonPath.<List<?>>read(right, "$.warnings").isEmpty());
+
+        // A past item copied as another brand doesn't keep its photo.
+        String otherBrand = tool(token, "add_item_to_list", Map.of("listId", listId,
+                "fromItemId", JsonPath.read(right, "$.item.itemId"), "brand", "Oak Farms", "allowDuplicate", true));
+        assertEquals("Oak Farms", JsonPath.read(otherBrand, "$.item.brand"));
+        assertEquals(false, JsonPath.read(otherBrand, "$.item.hasPhoto"));
+    }
+
+    @Test
     void addsNewItemsCopiesPastOnesAndSkipsDuplicates() throws Exception {
         String user = createUser();
         String token = token(user);

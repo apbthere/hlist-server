@@ -44,11 +44,16 @@ public class McpController {
                and photo. If several could match and it isn't clear which one the user means, ask.
             4. Otherwise search the web for the product at that store (e.g. "Bounty paper towels costco.com") and
                add it with add_item_to_list giving its name, brand and productUrl: the product page's link from the
-               search results. You don't need to open the page (store sites often block assistants); HList reads
-               it and takes the product photo from it. If several products fit, ask which one. Keep names short, the way they
-               appear on a shelf label ("Paper Towels", brand "Kirkland Signature"), without sizes or counts in
-               the name; put a size or count the user cares about in the comment. Pick its department from
-               list_departments. Without a product page, HList finds a product photo itself.
+               search results. Use the store's own site (costco.com, target.com, ...), not resellers or price
+               trackers. The page must be for that brand's product: its title in the results should name the brand.
+               You don't need to open the page (store sites often block assistants); HList reads it and takes the
+               product photo from it. If the user didn't name a brand and several fit, prefer the store's own brand
+               (Kirkland Signature at Costco) or ask. Keep names short, the way they appear on a shelf label
+               ("Paper Towels", brand "Kirkland Signature"), without sizes or counts in the name; put a size or
+               count the user cares about in the comment. Pick its department from list_departments. Without a
+               product page, HList finds a product photo itself.
+            To change an item's brand, remove it and add the other brand's product the same way, with a new search
+            for that brand's page. Read the warnings add_item_to_list returns, and act on them before you answer.
             Tell the user what you added, or what was already there.""";
 
     private final ShoppingTools tools;
