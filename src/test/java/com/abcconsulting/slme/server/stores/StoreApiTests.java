@@ -46,7 +46,7 @@ class StoreApiTests {
 	void storesAndStoredIconsArePublic() throws Exception {
 		mockMvc.perform(get("/api/stores"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$[*].key").value(hasItems("publix", "costco", "aldi", "walmart", "target", "homedepot", "lowes")))
+				.andExpect(jsonPath("$[*].key").value(hasItems("publix", "costco", "aldi", "walmart", "target", "homedepot", "lowes", "wholefoods", "freshmarket")))
 				.andExpect(jsonPath("$[?(@.key == 'homedepot')].iconUrl").value(hasItems("/api/store-icons/homedepot")))
 				.andExpect(jsonPath("$[?(@.key == 'costco')].domains[*]").value(hasItems("costco.com", "costcobusinessdelivery.com")));
 

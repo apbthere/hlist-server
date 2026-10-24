@@ -20,7 +20,9 @@ public class StoreCatalog {
             store("walmart", "Walmart", "https://www.walmart.com", "walmart", "wal mart"),
             store("target", "Target", "https://www.target.com", "target"),
             store("homedepot", "Home Depot", "https://www.homedepot.com", "home depot", "homedepot"),
-            store("lowes", "Lowe's", "https://www.lowes.com", "lowes"));
+            store("lowes", "Lowe's", "https://www.lowes.com", "lowes"),
+            store("wholefoods", "Whole Foods", "https://www.wholefoodsmarket.com", "whole foods", "wholefoods"),
+            store("freshmarket", "The Fresh Market", "https://www.thefreshmarket.com", "fresh market", "freshmarket"));
 
     public List<Store> all() {
         return STORES;

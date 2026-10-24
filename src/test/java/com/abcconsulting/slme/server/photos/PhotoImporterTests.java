@@ -184,6 +184,8 @@ class PhotoImporterTests {
 		assertEquals("Great Value", PhotoImporter.productBrand(
 				"<script type=\"application/ld+json\">{not json</script><meta itemprop=\"brand\" content=\"Great Value\">"));
 		assertEquals(null, PhotoImporter.productBrand("<script type=\"application/ld+json\">{\"@type\":\"Organization\",\"brand\":\"X\"}</script>"));
+		assertEquals(null, PhotoImporter.productBrand(
+				"<script type=\"application/ld+json\">{\"@type\":\"Product\",\"brand\":{\"name\":\"Fresh Produce (Brands May Vary)\"}}</script>"));
 	}
 
 	@Test
@@ -202,6 +204,8 @@ class PhotoImporterTests {
 				"<html><head><title>\n  Kirkland Signature Almonds, 3 lb | Costco\n</title></head><svg><title>Warehouse</title></svg>"));
 		assertEquals("Store-brand milk", PhotoImporter.productTitle("<title>Store-brand milk - Walmart.com</title>"));
 		assertEquals(null, PhotoImporter.productTitle("<html><body>No title</body></html>"));
+		assertEquals("Organic Red Beets, 16 Oz", PhotoImporter.productTitle(
+				"<meta property=\"og:title\" content=\"Organic Red Beets, 16 Oz | Grocery Pickup &amp; Delivery | Whole Foods Market\"/>"));
 	}
 
 	@Test
@@ -218,6 +222,34 @@ class PhotoImporterTests {
 		assertEquals(List.of("https://images.test/a.jpg", "https://images.test/b.jpg"), PhotoImporter.jsonLdProductImages(
 				"<script type=\"application/ld+json\">{\"@graph\":[{\"@type\":\"WebPage\"},{\"@type\":\"Product\",\"image\":"
 						+ "[{\"@type\":\"ImageObject\",\"url\":\"https://images.test/a.jpg\"},\"https://images.test/b.jpg\"]}]}</script>"));
+	}
+
+	@Test
+	void prefersTheProductDataImageToTheSitesBanner() {
+		// Like Whole Foods: og:image is the same banner on every page; the Product names the product's photo.
+		String html = "<meta property=\"og:image\" content=\"https://assets.test/wfm-og-homepage-rectangle.png\"/>"
+				+ "<script type=\"application/ld+json\">{\"@type\":\"Product\",\"image\":[\"https://images.test/I/beets.jpg\"]}</script>";
+		assertEquals(List.of(URI.create("https://images.test/I/beets.jpg"), URI.create("https://assets.test/wfm-og-homepage-rectangle.png")),
+				PhotoImporter.productImages(html, URI.create("https://www.wholefoods.test/product/beets")));
+	}
+
+	@Test
+	void skipsPlaceholdersAndFallsBackToThePreloadedImage() {
+		// Like The Fresh Market's Instacart storefront: the Product's image is a stand-in, the photo is preloaded.
+		byte[] photo = TestImages.jpeg(60, 60);
+		html("/products/bacon", """
+				<link rel="preload" as="image" imageSrcSet="https://cdn.test/logo.png 2x"/>
+				<link rel="preload" as="image" href="/product-image/file/large_bacon.jpeg"/>
+				<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Product",
+				  "name":"The Fresh Market Applewood Smoked Bacon","brand":{"@type":"Brand","name":"The Fresh Market"},
+				  "image":["/assets/missing-item-4bbe82b8.png"]}]}</script>""");
+		pages.put("/assets/missing-item-4bbe82b8.png", new Page("image/png", TestImages.transparentPng(10, 10)));
+		pages.put("/product-image/file/large_bacon.jpeg", new Page("image/jpeg", photo));
+
+		PhotoImporter.Fetched fetched = fetchPage("/products/bacon");
+		assertArrayEquals(photo, fetched.picture());
+		assertEquals("Applewood Smoked Bacon", fetched.title());
+		assertEquals(List.of("/products/bacon", "/product-image/file/large_bacon.jpeg"), requested);
 	}
 
 	@Test

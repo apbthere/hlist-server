@@ -23,6 +23,10 @@ class StoreCatalogTests {
 		assertEquals("homedepot", match("home   depot!"));
 		assertEquals("walmart", match("Wal-Mart"));
 		assertEquals("aldi", match("ALDI"));
+		assertEquals("wholefoods", match("Whole Foods"));
+		assertEquals("wholefoods", match("wholefoods run"));
+		assertEquals("freshmarket", match("The Fresh Market"));
+		assertEquals("freshmarket", match("Fresh Market Sat"));
 	}
 
 	@Test
@@ -36,6 +40,7 @@ class StoreCatalogTests {
 		assertEquals(null, match("Weekly"));
 		assertEquals(null, match("Aldine St pickup"));
 		assertEquals(null, match("Targeted deals"));
+		assertEquals(null, match("Fresh produce market"));
 		assertEquals(null, match(""));
 		assertEquals(null, match(null));
 	}
@@ -43,6 +48,6 @@ class StoreCatalogTests {
 	@Test
 	void findsStoresByKey() {
 		assertEquals("Home Depot", catalog.find("homedepot").orElseThrow().name());
-		assertEquals(7, catalog.all().size());
+		assertEquals(9, catalog.all().size());
 	}
 }

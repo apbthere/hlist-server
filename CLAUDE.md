@@ -40,7 +40,8 @@ first. CI (`.github/workflows/ci.yml`) runs `./mvnw verify` on Java 25.
 - `live/`: server-sent events at `/api/events`. Services publish `DataChangedEvent` (lists, list-items(listId),
   items, catalog); delivered after commit by `@TransactionalEventListener(fallbackExecution = true)`. The
   `X-HList-Client` request header becomes the event's origin, so a device ignores its own changes.
-- `stores/`: recognises stores in list names (Publix, Costco, Aldi, Walmart, Target, Home Depot, Lowe's) and fetches
+- `stores/`: recognises stores in list names (Publix, Costco, Aldi, Walmart, Target, Home Depot, Lowe's, Whole Foods,
+  The Fresh Market) and fetches
   and caches their icons (`/api/store-icons/{key}`). A store can have more than one website (`Store.otherDomains`:
   costcobusinessdelivery.com is Costco); "Add to HList" picks the list by them.
 - `photos/`: item photos (see below).
@@ -100,7 +101,10 @@ photo). The workflow the assistant should follow is in `McpController.INSTRUCTIO
   makes a 256 px thumbnail. Photos are private to their owner and immutable (cached for a year).
 - `PUT/DELETE /api/items/{id}/photo` attaches/removes. One photo per item; replaced photos are deleted, and unused
   ones are removed nightly (`PhotoService.deleteUnusedPhotos`).
-- `POST /api/photos/import {url}` (`PhotoImporter`): an image address, or a product page whose og:image is used.
+- `POST /api/photos/import {url}` (`PhotoImporter`): an image address, or a product page. Its picture is, in order,
+  the schema.org Product's `image` (Whole Foods' og:image is a site banner), og:image, then a preloaded image
+  (Instacart storefronts such as delivery.thefreshmarket.com name a "missing-item" placeholder in their Product).
+  Placeholder images are skipped.
   It asks for a larger `width=` and sends `Accept: image/jpeg,...` (Costco's CDN converts AVIF on request). It
   returns the page's product name (og:title, without " | Site") and brand (schema.org JSON-LD `brand`), with the
   brand dropped from the front of the name.
