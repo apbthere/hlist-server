@@ -193,7 +193,8 @@ public class ShoppingTools {
 
     /**
      * Adds an item to a list, unless the list has it already (an entry that was checked off is unchecked instead).
-     * A copied item keeps its brand, department, comment and photo; a new one takes the photo (and, when not given,
+     * A copied item keeps its brand, department, comment and photo (or takes another past item's, or Open Food
+     * Facts'); a new one takes the photo (and, when not given,
      * the name and brand) from its product page, and the department and photo of a past item with the same name.
      * Failing those, its photo is the best Open Food Facts match, as the clients suggest.
      */
@@ -231,6 +232,9 @@ public class ShoppingTools {
                 warnings.add("The past item's photo is of another brand, so it wasn't kept. Search the web for the "
                         + request.brand() + " product's page and give it to set_item_photo.");
             }
+            if (photoId == null) {
+                photoId = pastPhoto(username, name, brandId).orElse(null);
+            }
         } else {
             String productName = null;
             String productBrand = null;
@@ -255,7 +259,7 @@ public class ShoppingTools {
                     }
                 } catch (RuntimeException failed) {
                     log.info("Couldn't import a photo from {}: {}", request.productUrl(), failed.getMessage());
-                    warnings.add("No photo: " + failed.getMessage());
+                    warnings.add("HList couldn't get a photo from that page (" + reason(failed) + ").");
                 }
             }
             name = request.name() != null && !request.name().isBlank() ? request.name().strip() : productName;
@@ -309,19 +313,22 @@ public class ShoppingTools {
             }
         }
 
-        if (photoId == null && request.fromItemId() == null) {
+        if (photoId == null) {
             photoId = productDatabasePhoto(username, name, brandNames().get(brandId)).orElse(null);
         }
         Item added = shopping.addShoppingItem(request.listId(), name, quantity, departmentId, brandId, comment, username);
+        // Assistants tend to skip the web search, and stop once an item is added; the tool's answer is the surest
+        // place to ask for it.
+        String store = stores.match(ownList(request.listId(), username).shoppingListName())
+                .map(found -> found.domains().getFirst()).orElse(null);
+        String search = "Search the web for \"" + (brandNames().getOrDefault(brandId, "") + " " + name).strip()
+                + (store == null ? "" : " " + store) + "\" and give the product page's link"
+                + (store == null ? "" : " on " + store) + " to set_item_photo (itemId " + added.itemId() + ").";
         if (request.fromItemId() == null && (request.productUrl() == null || request.productUrl().isBlank())) {
-            // Assistants tend to skip the web search; the tool's answer is the surest place to ask for it.
-            String store = stores.match(ownList(request.listId(), username).shoppingListName())
-                    .map(found -> found.domains().getFirst()).orElse(null);
-            String product = (brandNames().getOrDefault(brandId, "") + " " + name).strip();
             warnings.add("No product page was given" + (photoId == null ? ", so the item has no photo" : "; its photo may "
-                    + "not be the exact product") + ". Search the web for \"" + product
-                    + (store == null ? "" : " " + store) + "\" and give the product page's "
-                    + "link to set_item_photo (itemId " + added.itemId() + ").");
+                    + "not be the exact product") + ". " + search);
+        } else if (photoId == null && warnings.stream().noneMatch(warning -> warning.contains("set_item_photo"))) {
+            warnings.add("The item has no photo. " + search);
         }
         if (photoId != null) {
             try {
@@ -377,7 +384,13 @@ public class ShoppingTools {
                 .filter(entry -> entry.itemId() == itemId)
                 .findFirst()
                 .orElseThrow(() -> new NoSuchElementException("That item isn't on this list. Read the list again for the item IDs."));
-        PhotoService.ImportedPhoto imported = photos.importFromWeb(username, productUrl.strip());
+        PhotoService.ImportedPhoto imported;
+        try {
+            imported = photos.importFromWeb(username, productUrl.strip());
+        } catch (IllegalArgumentException failed) {
+            throw new IllegalArgumentException("HList couldn't get a photo from that page (" + reason(failed)
+                    + "). Try another page for the product, on the store's own site if it has one.", failed);
+        }
         String brand = brandNames().get(item.brandId());
         String otherBrand = otherBrand(imported, brand);
         if (otherBrand != null) {
@@ -499,6 +512,11 @@ public class ShoppingTools {
                 .map(Store::key)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown store \"" + store + "\". HList knows "
                         + stores.all().stream().map(Store::name).collect(Collectors.joining(", ")) + "."));
+    }
+
+    /** Why a photo couldn't be imported, without the importer's advice for people in the app. */
+    static String reason(RuntimeException failed) {
+        return failed.getMessage().split("\\. ")[0].replaceFirst("\\.$", "");
     }
 
     /** The photo of the latest item with this name and brand, if it has one. */
