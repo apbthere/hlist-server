@@ -310,11 +310,12 @@ public class ShoppingTools {
         Item added = shopping.addShoppingItem(request.listId(), name, quantity, departmentId, brandId, comment, username);
         if (request.fromItemId() == null && (request.productUrl() == null || request.productUrl().isBlank())) {
             // Assistants tend to skip the web search; the tool's answer is the surest place to ask for it.
-            String store = stores.match(ownList(request.listId(), username).shoppingListName()).map(Store::name).orElse(null);
+            String store = stores.match(ownList(request.listId(), username).shoppingListName())
+                    .map(found -> found.domains().getFirst()).orElse(null);
             String product = (brandNames().getOrDefault(brandId, "") + " " + name).strip();
             warnings.add("No product page was given" + (photoId == null ? ", so the item has no photo" : "; its photo may "
                     + "not be the exact product") + ". Search the web for \"" + product
-                    + (store == null ? "" : " " + store.toLowerCase(Locale.ROOT) + ".com") + "\" and give the product page's "
+                    + (store == null ? "" : " " + store) + "\" and give the product page's "
                     + "link to set_item_photo (itemId " + added.itemId() + ").");
         }
         if (photoId != null) {

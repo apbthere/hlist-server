@@ -20,7 +20,8 @@ import java.util.regex.Pattern;
 
 /**
  * Gets a picture from a web address: either the image itself (an address copied from a web page's photo) or a
- * product page, whose product image is read from its {@code og:image}/{@code twitter:image} tags. Downloads go
+ * product page, whose product image is read from its schema.org Product data or its {@code og:image}/
+ * {@code twitter:image} tags. Downloads go
  * through {@link SafeDownloader} (HTTPS, public addresses only, size- and time-limited). Failures are
  * IllegalArgumentExceptions whose message tells the user what to do instead.
  */
@@ -39,6 +40,8 @@ public class PhotoImporter {
             "([a-zA-Z_:][-a-zA-Z0-9_:.]*)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s\"'>]+))");
     private static final Pattern WIDTH_PARAMETER = Pattern.compile("(?i)([?&](?:width|w|wid)=)(\\d+)");
     private static final Set<String> IMAGE_PROPERTIES = Set.of("og:image:secure_url", "og:image", "og:image:url", "twitter:image");
+    /** Stand-ins sites show when a product has no picture, e.g. Instacart's "missing-item-....png". */
+    private static final Pattern PLACEHOLDER = Pattern.compile("(?i)(missing|placeholder|no[-_]?image)[^/]*$");
 
     private static final Pattern TITLE_TAG = Pattern.compile("<title[^>]*>([^<]*)</title>", Pattern.CASE_INSENSITIVE);
     private static final Pattern CHARACTER_REFERENCE = Pattern.compile("&(#[xX][0-9a-fA-F]+|#\\d+|amp|lt|gt|quot|apos|nbsp);");
@@ -158,7 +161,9 @@ public class PhotoImporter {
 
     /** The page's product images, best first, each also asked for at {@link #PREFERRED_WIDTH} where possible. */
     static List<URI> productImages(String html, URI page) {
-        List<String> found = new ArrayList<>();
+        // The Product's own image comes first: og:image is sometimes the site's banner (Whole Foods). Pages built in
+        // the browser (Instacart storefronts such as delivery.publix.com) may have no image tags at all.
+        List<String> found = new ArrayList<>(jsonLdProductImages(html));
         Matcher meta = META_TAG.matcher(html);
         while (meta.find()) {
             Map<String, String> attributes = attributes(meta.group());
@@ -174,13 +179,23 @@ public class PhotoImporter {
                 found.add(attributes.get("href"));
             }
         }
-        // Pages built in the browser (e.g. Publix's Instacart storefront) have no image tags, but describe the
-        // product for search engines in JSON-LD.
-        found.addAll(jsonLdProductImages(html));
+        // Last, images the page preloads: an Instacart storefront's JSON-LD names a placeholder (The Fresh Market),
+        // but the page preloads the product's photo.
+        link = LINK_TAG.matcher(html);
+        while (link.find()) {
+            Map<String, String> attributes = attributes(link.group());
+            if ("preload".equalsIgnoreCase(attributes.getOrDefault("rel", ""))
+                    && "image".equalsIgnoreCase(attributes.getOrDefault("as", "")) && attributes.containsKey("href")) {
+                found.add(attributes.get("href"));
+            }
+        }
         Set<URI> candidates = new LinkedHashSet<>();
         for (String value : found) {
             try {
                 URI image = page.resolve(unescape(value.trim()));
+                if (image.getPath() != null && PLACEHOLDER.matcher(image.getPath()).find()) {
+                    continue;
+                }
                 larger(image).ifPresent(candidates::add);
                 candidates.add(image);
             } catch (IllegalArgumentException invalid) {
@@ -201,7 +216,8 @@ public class PhotoImporter {
             Map<String, String> attributes = attributes(meta.group());
             String key = attributes.getOrDefault("property", attributes.getOrDefault("name", "")).toLowerCase(Locale.ROOT);
             if (TITLE_PROPERTIES.contains(key) && attributes.containsKey("content")) {
-                title = attributes.get("content");
+                // Some sites add their name: "Organic Red Beets | Grocery Pickup & Delivery | Whole Foods Market".
+                title = attributes.get("content").replaceFirst("\\s+\\|\\s.*$", "");
             }
         }
         if (title == null || title.isBlank()) {
@@ -356,7 +372,9 @@ public class PhotoImporter {
         if (brand.isObject()) {
             return brand.has("name") ? brandName(brand.get("name")) : null;
         }
-        return clean(brand.asString(""));
+        String name = clean(brand.asString(""));
+        // Whole Foods' produce: "Fresh Produce (Brands May Vary)" isn't a brand.
+        return name == null || name.toLowerCase(Locale.ROOT).contains("brands may vary") ? null : name;
     }
 
     private static String clean(String text) {
