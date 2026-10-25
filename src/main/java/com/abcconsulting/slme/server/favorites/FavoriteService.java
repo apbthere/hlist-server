@@ -29,6 +29,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Favorite products: kept, edited and removed by hand, made from an item on a list, and added to lists. Each store
@@ -106,6 +107,11 @@ public class FavoriteService {
     @Transactional
     public Favorite create(String username, FavoriteInput input) {
         FavoriteRepository.Fields fields = fields(username, input);
+        if (fields.departmentId() == null) {
+            fields = new FavoriteRepository.Fields(fields.name(), fields.brandId(),
+                    likelyDepartment(username, fields.name(), fields.brandId(), fields.category()), fields.category(),
+                    fields.comment(), fields.photoId());
+        }
         long favoriteId = favorites.insert(username, fields);
         favorites.replaceStores(favoriteId, storeRows(input.stores(), List.of()));
         events.publishEvent(DataChangedEvent.favorites(username));
@@ -231,7 +237,26 @@ public class FavoriteService {
      */
     @Transactional
     public AddedToList addToList(long favoriteId, String username, long listId, Integer quantity) {
+        return addToList(favoriteId, username, listId, quantity, null);
+    }
+
+    /**
+     * Adds the favorite to a list, as {@link #addToList(long, String, long, Integer)}, filed under the department
+     * given; else its own; else the one it likely belongs in (see {@link #departmentFor}). A department given for a
+     * favorite that has none is kept on the favorite too.
+     */
+    @Transactional
+    public AddedToList addToList(long favoriteId, String username, long listId, Integer quantity, Long departmentId) {
         Favorite favorite = get(favoriteId, username);
+        if (departmentId != null && !departments.existsById(departmentId)) {
+            throw new IllegalArgumentException("Department not found");
+        }
+        if (departmentId != null && favorite.departmentId() == null) {
+            favorites.update(favoriteId, username, new FavoriteRepository.Fields(favorite.name(), favorite.brandId(),
+                    departmentId, favorite.category(), favorite.comment(), favorite.photoId()));
+            events.publishEvent(DataChangedEvent.favorites(username));
+        }
+        Long department = departmentId != null ? departmentId : departmentFor(username, favorite);
         if (quantity != null && (quantity < 1 || quantity > 999)) {
             throw new IllegalArgumentException("The quantity must be between 1 and 999.");
         }
@@ -249,11 +274,44 @@ public class FavoriteService {
             return new AddedToList("already_on_list", listId, existing.itemId());
         }
         Item added = shopping.addShoppingItem(listId, favorite.name(), quantity == null ? 1 : quantity,
-                favorite.departmentId(), favorite.brandId(), favorite.comment(), username);
+                department, favorite.brandId(), favorite.comment(), username);
         if (favorite.photoId() != null) {
             photoService.setItemPhoto(added.itemId(), favorite.photoId(), username);
         }
         return new AddedToList("added", listId, added.itemId());
+    }
+
+    /** The favorite's department, or (when it has none) the one it likely belongs in; null when there's no telling. */
+    public Long departmentFor(String username, Favorite favorite) {
+        return favorite.departmentId() != null ? favorite.departmentId()
+                : likelyDepartment(username, favorite.name(), favorite.brandId(), favorite.category());
+    }
+
+    /**
+     * Where a product without a department probably goes: the department of the latest item with its name and brand,
+     * else with its name, else the one most of the user's favorites in its category have.
+     */
+    private Long likelyDepartment(String username, String name, Long brandId, String category) {
+        String wanted = normalize(name);
+        List<Item> named = items.findAllByUsername(username).stream()
+                .filter(item -> item.departmentId() != null && normalize(item.itemName()).equals(wanted))
+                .sorted(Comparator.comparing(Item::itemId).reversed())
+                .toList();
+        Optional<Long> fromItems = named.stream()
+                .filter(item -> Objects.equals(item.brandId(), brandId))
+                .map(Item::departmentId)
+                .findFirst()
+                .or(() -> named.stream().map(Item::departmentId).findFirst());
+        if (fromItems.isPresent() || category == null) {
+            return fromItems.orElse(null);
+        }
+        return list(username).stream()
+                .filter(favorite -> favorite.departmentId() != null && category.equalsIgnoreCase(favorite.category()))
+                .collect(Collectors.groupingBy(Favorite::departmentId, Collectors.counting()))
+                .entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
     }
 
     // ---- Helpers ----

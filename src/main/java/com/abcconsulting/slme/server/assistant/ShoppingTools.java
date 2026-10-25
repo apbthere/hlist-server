@@ -1,5 +1,6 @@
 package com.abcconsulting.slme.server.assistant;
 
+import com.abcconsulting.slme.server.favorites.Favorite;
 import com.abcconsulting.slme.server.favorites.FavoriteService;
 import com.abcconsulting.slme.server.model.Brand;
 import com.abcconsulting.slme.server.model.Department;
@@ -338,14 +339,22 @@ public class ShoppingTools {
     }
 
     /** Adds a favorite to a list with its name, brand, department, notes and photo, unless the list has it already. */
-    public AddResult addFavorite(String username, long listId, long favoriteId, Integer quantity, boolean reopenList) {
+    public AddResult addFavorite(String username, long listId, long favoriteId, Integer quantity, boolean reopenList,
+            String department) {
         listToAddTo(listId, username, reopenList);
-        FavoriteService.AddedToList added;
+        Favorite favorite;
         try {
-            added = favorites.addToList(favoriteId, username, listId, quantity);
+            favorite = favorites.get(favoriteId, username);
         } catch (NoSuchElementException missing) {
             throw new NoSuchElementException("No favorite " + favoriteId + ". Use search_favorites for the favorite IDs.");
         }
+        Long departmentId = department == null ? null : departmentId(department, departmentNames());
+        if (departmentId == null && favorites.departmentFor(username, favorite) == null) {
+            // Without one the item lands under "Other" on the list, and assistants can't move it later.
+            throw new IllegalArgumentException(favorite.name() + " has no department, so nothing was added. Pick the "
+                    + "best fit from list_departments and pass it as department; HList keeps it on the favorite too.");
+        }
+        FavoriteService.AddedToList added = favorites.addToList(favoriteId, username, listId, quantity, departmentId);
         ShoppingListItem item = shopping.getShoppingItemsByList(listId, username).stream()
                 .filter(entry -> entry.itemId() == added.itemId())
                 .findFirst()

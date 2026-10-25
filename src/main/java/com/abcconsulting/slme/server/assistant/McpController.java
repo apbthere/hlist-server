@@ -75,7 +75,8 @@ public class McpController {
               has no open list, ask before creating one. Tell the user the prices you compared, where each came
               from (online prices can differ from the shelf), and where you added it.
             - To make something a favorite, use save_favorite (fromItemId copies a past item) with a category the
-              user already has (search_favorites lists them) when one fits.""";
+              user already has (search_favorites lists them) when one fits, and the best fit from list_departments
+              as its department (where it goes on a list).""";
 
     private final ShoppingTools tools;
     private final FavoriteTools favoriteTools;
@@ -146,7 +147,7 @@ public class McpController {
                 case "add_item_to_list" -> number(arguments, "fromFavoriteId") != null
                         ? tools.addFavorite(username, required(arguments, "listId"),
                                 required(arguments, "fromFavoriteId"), integer(arguments, "quantity"),
-                                Boolean.TRUE.equals(bool(arguments, "reopenList")))
+                                Boolean.TRUE.equals(bool(arguments, "reopenList")), text(arguments, "department"))
                         : tools.addItem(username, new ShoppingTools.AddRequest(
                         required(arguments, "listId"), number(arguments, "fromItemId"), text(arguments, "name"),
                         text(arguments, "brand"), text(arguments, "department"),
@@ -283,7 +284,8 @@ public class McpController {
                 "description", "The brand, e.g. \"Kirkland Signature\"."));
         properties.put("department", Map.of("type", "string",
                 "description", "The best fit from list_departments (paper towels: household or paper goods); "
-                + "leave it out only when none fits. Not needed with fromItemId."));
+                + "leave it out only when none fits. Not needed with fromItemId, nor with fromFavoriteId unless the "
+                + "favorite has none (then it's kept on the favorite too)."));
         properties.put("quantity", Map.of("type", "integer", "minimum", 1, "description", "Default 1."));
         properties.put("comment", Map.of("type", "string", "description", "A note, e.g. a size or flavor."));
         properties.put("productUrl", Map.of("type", "string",
@@ -306,7 +308,7 @@ public class McpController {
         properties.put("category", Map.of("type", "string",
                 "description", "The user's grouping, e.g. \"Coffee\" or \"Sake\"; reuse one they have."));
         properties.put("department", Map.of("type", "string",
-                "description", "From list_departments, for when it's added to a list."));
+                "description", "The best fit from list_departments: where it goes when added to a list."));
         properties.put("comment", Map.of("type", "string", "description", "A note, e.g. the roast or size the user likes."));
         properties.put("stores", Map.of("type", "array", "items", Map.of("type", "string"),
                 "description", "Every store it's sold at, e.g. [\"Costco\", \"Publix\"]; replaces the list (prices "

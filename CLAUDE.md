@@ -108,6 +108,11 @@ Products the user buys again and again, apart from lists and stores, grouped by 
   department, notes, photo; stores from the lists it was on); an item that already is one answers 200 with it.
   `POST /api/favorites/{id}/add-to-list {listId}` adds a new item sharing the favorite's photo, never a duplicate
   (`outcome`: added, unchecked, already_on_list).
+- Departments: a favorite created without one takes the department of the latest item with its name (and brand),
+  else the one most favorites in its category have (`FavoriteService.likelyDepartment`); adding to a list does the
+  same for a favorite that still has none. Assistants must then give one: `add_item_to_list` with
+  `fromFavoriteId` refuses without a department (and keeps the one given on the favorite), and `save_favorite`
+  answers with a warning.
 - Store names HList knows are stored as `StoreCatalog` spells them ("costco" → "Costco"), others as typed.
 - A favorite's photo is shared with items made from it, so photo cleanup (`PhotoRepository`) and the brand and
   department in-use checks also look at `favorite`.
