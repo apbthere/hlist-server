@@ -44,7 +44,7 @@ public class PhotoRepository {
         return rows.stream().findFirst();
     }
 
-    boolean belongsTo(long photoId, String username) {
+    public boolean belongsTo(long photoId, String username) {
         Integer count = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM photo WHERE photo_id = ? AND username = ?", Integer.class, photoId, username);
         return count != null && count > 0;
@@ -54,17 +54,24 @@ public class PhotoRepository {
         return jdbcTemplate.update("UPDATE item SET photo_id = ? WHERE item_id = ? AND username = ?", photoId, itemId, username);
     }
 
-    /** Deletes the photo if no item shows it any more. */
-    void deleteIfUnused(long photoId) {
-        jdbcTemplate.update("DELETE FROM photo WHERE photo_id = ? AND NOT EXISTS (SELECT 1 FROM item WHERE photo_id = ?)",
-                photoId, photoId);
+    /** Deletes the photo if no item or favorite shows it any more. */
+    public void deleteIfUnused(long photoId) {
+        jdbcTemplate.update("""
+                DELETE FROM photo
+                WHERE photo_id = ? AND NOT EXISTS (SELECT 1 FROM item WHERE photo_id = ?)
+                    AND NOT EXISTS (SELECT 1 FROM favorite WHERE photo_id = ?)
+                """, photoId, photoId, photoId);
     }
 
-    /** Deletes photos no item shows that were uploaded before the cut-off (e.g. an editor that was cancelled). */
+    /**
+     * Deletes photos no item or favorite shows that were uploaded before the cut-off (e.g. an editor that was
+     * cancelled).
+     */
     int deleteUnusedOlderThan(OffsetDateTime cutoff) {
         return jdbcTemplate.update("""
                 DELETE FROM photo p
                 WHERE p.created_at < ? AND NOT EXISTS (SELECT 1 FROM item i WHERE i.photo_id = p.photo_id)
+                    AND NOT EXISTS (SELECT 1 FROM favorite f WHERE f.photo_id = p.photo_id)
                 """, cutoff);
     }
 }

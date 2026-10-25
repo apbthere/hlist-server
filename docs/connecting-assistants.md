@@ -210,6 +210,15 @@ something you've bought before, and otherwise look up the product at that store.
 | `remove_item_from_list` | Takes an item off a list | "Take the bananas off my Publix list." |
 | `set_item_photo` | Gives an item the photo from a product page or image | "Use this picture for the yogurt on my Costco list: https://…" |
 | `list_departments` | The departments items are grouped by (the assistant uses it to file new items) | "Which departments does HList have?" |
+| `search_favorites` | Your favorite products, grouped by category, with the stores that sell them and the price last seen at each | "Which coffees are in my favorites?" |
+| `save_favorite` | Makes a product (or something you've bought before) a favorite, or changes one | "Make the Kirkland olive oil a favorite, under Pantry." |
+| `remove_favorite` | Removes a favorite (lists keep their items) | "Drop the Nigori sake from my favorites." |
+| `record_store_price` | Remembers the price the assistant found at a store, or that the store doesn't sell it | (used while comparing prices) |
+
+Ask for a favorite without naming a store ("Add my coffee to a list") and the assistant first compares prices: it
+searches each store's website for the product, records what it finds, and adds it to the open list of the
+cheapest store, telling you the prices it compared. Prices on store websites can differ from the shelf (and Publix
+shows prices only for a chosen store), so treat the comparison as a guide.
 
 The assistant never creates departments, which are shared by everyone on your server. It does create brands it
 needs.

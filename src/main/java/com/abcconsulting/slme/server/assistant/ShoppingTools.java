@@ -1,5 +1,6 @@
 package com.abcconsulting.slme.server.assistant;
 
+import com.abcconsulting.slme.server.favorites.FavoriteService;
 import com.abcconsulting.slme.server.model.Brand;
 import com.abcconsulting.slme.server.model.Department;
 import com.abcconsulting.slme.server.model.Item;
@@ -51,9 +52,11 @@ public class ShoppingTools {
     private final PhotoService photos;
     private final ProductPhotoFinder photoFinder;
     private final StoreCatalog stores;
+    private final FavoriteService favorites;
 
     public ShoppingTools(ShoppingListService shopping, ShoppingListRepository lists, ItemRepository items,
-            ShoppingListItemDao listItems, PhotoService photos, ProductPhotoFinder photoFinder, StoreCatalog stores) {
+            ShoppingListItemDao listItems, PhotoService photos, ProductPhotoFinder photoFinder, StoreCatalog stores,
+            FavoriteService favorites) {
         this.shopping = shopping;
         this.lists = lists;
         this.items = items;
@@ -61,6 +64,7 @@ public class ShoppingTools {
         this.photos = photos;
         this.photoFinder = photoFinder;
         this.stores = stores;
+        this.favorites = favorites;
     }
 
     public record ListSummary(long listId, String name, String store, boolean completed, OffsetDateTime createdAt,
@@ -333,6 +337,27 @@ public class ShoppingTools {
         return new AddResult("added", "Added.", request.listId(), entry(entry, brandNames(), departments), warnings);
     }
 
+    /** Adds a favorite to a list with its name, brand, department, notes and photo, unless the list has it already. */
+    public AddResult addFavorite(String username, long listId, long favoriteId, Integer quantity) {
+        ownList(listId, username);
+        FavoriteService.AddedToList added;
+        try {
+            added = favorites.addToList(favoriteId, username, listId, quantity);
+        } catch (NoSuchElementException missing) {
+            throw new NoSuchElementException("No favorite " + favoriteId + ". Use search_favorites for the favorite IDs.");
+        }
+        ShoppingListItem item = shopping.getShoppingItemsByList(listId, username).stream()
+                .filter(entry -> entry.itemId() == added.itemId())
+                .findFirst()
+                .orElseThrow();
+        String message = switch (added.outcome()) {
+            case "unchecked" -> "It was on the list but checked off; it's unchecked now.";
+            case "already_on_list" -> "It's already on the list, so nothing was added.";
+            default -> "Added.";
+        };
+        return new AddResult(added.outcome(), message, listId, entry(item, brandNames(), departmentNames()), List.of());
+    }
+
     /** Gives an item on a list the photo from a product page (or image address), replacing any it had. */
     public ListEntry setItemPhoto(String username, long listId, long itemId, String productUrl) {
         ownList(listId, username);
@@ -417,7 +442,7 @@ public class ShoppingTools {
 
     // ---- Helpers ----
 
-    private ShoppingList ownList(long listId, String username) {
+    ShoppingList ownList(long listId, String username) {
         return lists.findById(listId)
                 .filter(list -> username.equals(list.username()))
                 .orElseThrow(() -> new NoSuchElementException(
@@ -461,7 +486,7 @@ public class ShoppingTools {
     }
 
     /** An existing brand with this name (ignoring case), or a new one. Brands are shared by all users. */
-    private Long brandId(String name, Map<Long, String> brands) {
+    Long brandId(String name, Map<Long, String> brands) {
         String wanted = name.strip();
         if (wanted.isEmpty()) {
             return null;
@@ -477,7 +502,7 @@ public class ShoppingTools {
     }
 
     /** An existing department; they aren't created here, so the list of departments stays tidy. */
-    private Long departmentId(String name, Map<Long, String> departments) {
+    Long departmentId(String name, Map<Long, String> departments) {
         if (name.isBlank()) {
             return null;
         }
@@ -489,16 +514,16 @@ public class ShoppingTools {
                         + "\". Use one of: " + String.join(", ", departments()) + " (or leave it out)."));
     }
 
-    private Map<Long, String> brandNames() {
+    Map<Long, String> brandNames() {
         return shopping.getBrands().stream().collect(Collectors.toMap(Brand::brandId, Brand::brandName));
     }
 
-    private Map<Long, String> departmentNames() {
+    Map<Long, String> departmentNames() {
         return shopping.getDepartments().stream()
                 .collect(Collectors.toMap(Department::departmentId, Department::departmentName));
     }
 
-    private static String blankToNull(String value) {
+    static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.strip();
     }
 

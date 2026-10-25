@@ -83,6 +83,9 @@ SSRF policy; [docs/api.md](docs/api.md) lists every endpoint. A few things worth
 | `remove_item_from_list` | Removes an item |
 | `set_item_photo` | Sets an item's photo from a product page or image |
 | `list_departments` | The departments items are grouped by |
+| `search_favorites` | Your favorite products by category, with each store's last known price |
+| `save_favorite` / `remove_favorite` | Keeps a product as a favorite (or a past item), or drops it |
+| `record_store_price` | Remembers a price the assistant found at a store, so the cheapest store wins |
 
 ### Example interaction
 

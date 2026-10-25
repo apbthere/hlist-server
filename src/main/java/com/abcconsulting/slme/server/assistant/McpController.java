@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,15 +56,35 @@ public class McpController {
                product page, HList finds a product photo itself.
             To change an item's brand, remove it and add the other brand's product the same way, with a new search
             for that brand's page. Read the warnings add_item_to_list returns, and act on them before you answer.
-            Tell the user what you added, or what was already there.""";
+            Tell the user what you added, or what was already there.
+
+            Favorites are products the user buys again and again, kept apart from lists and grouped by category
+            ("Coffee", "Sake"). Each lists the stores it's sold at, with the price last seen there and the
+            user's newest open list for that store (openListId).
+            - When the user asks for something they may keep as a favorite ("my coffee", "the usual sake"), look in
+              search_favorites first, then in search_item_history.
+            - To add a favorite to a list, unless the user named the store, first find which store has the best
+              price. For each of its stores (or, if it has none, the stores the user has lists for), search the web
+              for the product at that store's site (e.g. "Lavazza Super Crema costco.com") and read the price and
+              size from the results or the page. When sizes differ, compare the price per unit (per oz, per count).
+              Record every price you found with record_store_price, so HList remembers it, and available false for
+              a store that doesn't sell it. Don't guess a price you didn't find; a price recorded earlier
+              (priceCheckedAt) is only a fallback, and say how old it is.
+            - Then add it with add_item_to_list and fromFavoriteId to the cheapest store's open list. If that store
+              has no open list, ask before creating one. Tell the user the prices you compared, where each came
+              from (online prices can differ from the shelf), and where you added it.
+            - To make something a favorite, use save_favorite (fromItemId copies a past item) with a category the
+              user already has (search_favorites lists them) when one fits.""";
 
     private final ShoppingTools tools;
+    private final FavoriteTools favoriteTools;
     private final JsonMapper json;
     private final String version;
 
-    public McpController(ShoppingTools tools, JsonMapper json,
+    public McpController(ShoppingTools tools, FavoriteTools favoriteTools, JsonMapper json,
             @Value("${hlist.build.server-commit:dev}") String serverCommit) {
         this.tools = tools;
+        this.favoriteTools = favoriteTools;
         this.json = json;
         this.version = serverCommit;
     }
@@ -120,7 +142,10 @@ public class McpController {
                 case "get_list_items" -> tools.listItems(username, required(arguments, "listId"));
                 case "search_item_history" -> tools.searchHistory(username,
                         text(arguments, "query"), text(arguments, "store"));
-                case "add_item_to_list" -> tools.addItem(username, new ShoppingTools.AddRequest(
+                case "add_item_to_list" -> number(arguments, "fromFavoriteId") != null
+                        ? tools.addFavorite(username, required(arguments, "listId"),
+                                required(arguments, "fromFavoriteId"), integer(arguments, "quantity"))
+                        : tools.addItem(username, new ShoppingTools.AddRequest(
                         required(arguments, "listId"), number(arguments, "fromItemId"), text(arguments, "name"),
                         text(arguments, "brand"), text(arguments, "department"),
                         integer(arguments, "quantity"), text(arguments, "comment"), text(arguments, "productUrl"),
@@ -130,6 +155,15 @@ public class McpController {
                 case "set_item_photo" -> tools.setItemPhoto(username, required(arguments, "listId"),
                         required(arguments, "itemId"), text(arguments, "productUrl"));
                 case "list_departments" -> tools.departments();
+                case "search_favorites" -> favoriteTools.search(username, text(arguments, "query"));
+                case "save_favorite" -> favoriteTools.save(username, new FavoriteTools.SaveRequest(
+                        number(arguments, "favoriteId"), number(arguments, "fromItemId"), text(arguments, "name"),
+                        text(arguments, "brand"), text(arguments, "category"), text(arguments, "department"),
+                        text(arguments, "comment"), texts(arguments, "stores"), text(arguments, "productUrl")));
+                case "remove_favorite" -> favoriteTools.remove(username, required(arguments, "favoriteId"));
+                case "record_store_price" -> favoriteTools.recordPrice(username, required(arguments, "favoriteId"),
+                        text(arguments, "store"), decimal(arguments, "price"), text(arguments, "size"),
+                        text(arguments, "productUrl"), !Boolean.FALSE.equals(bool(arguments, "available")));
                 default -> throw new IllegalArgumentException("Unknown tool " + name);
             };
             String answer = result instanceof String message ? message : json.writeValueAsString(result);
@@ -183,11 +217,15 @@ public class McpController {
                                 + "describe a new one with name, brand and productUrl. For a new item, first search "
                                 + "the web for the product at the list's store (e.g. \"Kirkland toilet paper "
                                 + "costco.com\") and pass the product page's link from the results as productUrl; "
-                                + "you don't need to open it. HList takes the photo from it.",
+                                + "you don't need to open it. HList takes the photo from it. To add a favorite, "
+                                + "give fromFavoriteId instead.",
                         Map.of(
                                 "listId", listId,
                                 "fromItemId", Map.of("type", "integer",
                                         "description", "A past item to add again, from search_item_history."),
+                                "fromFavoriteId", Map.of("type", "integer",
+                                        "description", "A favorite to add, from search_favorites (keeps its brand, "
+                                                + "department, notes and photo)."),
                                 "name", Map.of("type", "string",
                                         "description", "A new item's name, short like a shelf label, without the brand. "
                                                 + "Taken from the product page when left out."),
@@ -214,7 +252,55 @@ public class McpController {
                                 "itemId", Map.of("type", "integer", "description", "The item's ID, from get_list_items."),
                                 "productUrl", Map.of("type", "string", "description", "The product page or image address.")),
                         List.of("listId", "itemId", "productUrl"), false),
-                tool("list_departments", "The departments items can be filed under.", Map.of(), List.of(), true));
+                tool("list_departments", "The departments items can be filed under.", Map.of(), List.of(), true),
+                tool("search_favorites",
+                        "The user's favorite products and their categories. Each favorite lists the stores it's sold "
+                                + "at, cheapest known price first, with when that price was seen and the user's "
+                                + "newest open list for the store (openListId). Without a query, all favorites.",
+                        Map.of("query", Map.of("type", "string",
+                                "description", "Words from the name, brand, category or store, e.g. \"coffee\".")),
+                        List.of(), true),
+                tool("save_favorite",
+                        "Makes a product a favorite, or changes one (give favoriteId; fields left out are kept). "
+                                + "fromItemId copies a past item from search_item_history with its stores.",
+                        favoriteProperties(), List.of(), false),
+                tool("remove_favorite", "Removes a product from the user's favorites (not from any list).",
+                        Map.of("favoriteId", Map.of("type", "integer", "description", "From search_favorites.")),
+                        List.of("favoriteId"), false),
+                tool("record_store_price",
+                        "Records the price of a favorite at a store, as you found it just now (adds the store to "
+                                + "the favorite if it wasn't listed), or with available false that the store "
+                                + "doesn't sell it.",
+                        Map.of(
+                                "favoriteId", Map.of("type", "integer", "description", "From search_favorites."),
+                                "store", Map.of("type", "string", "description", "The store, e.g. \"Costco\"."),
+                                "price", Map.of("type", "number", "description", "The price in dollars, e.g. 12.99."),
+                                "size", Map.of("type", "string",
+                                        "description", "What the price is for, e.g. \"2.2 lb bag\" or \"6 pack\"."),
+                                "productUrl", Map.of("type", "string",
+                                        "description", "The product's page at that store, where the price is."),
+                                "available", Map.of("type", "boolean",
+                                        "description", "False when the store doesn't sell it. Default true.")),
+                        List.of("favoriteId", "store"), false));
+    }
+
+    private static Map<String, Object> favoriteProperties() {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("favoriteId", Map.of("type", "integer", "description", "The favorite to change."));
+        properties.put("fromItemId", Map.of("type", "integer",
+                "description", "A past item to make a favorite, from search_item_history."));
+        properties.put("name", Map.of("type", "string", "description", "Short like a shelf label, without the brand."));
+        properties.put("brand", Map.of("type", "string", "description", "The brand."));
+        properties.put("category", Map.of("type", "string",
+                "description", "The user's grouping, e.g. \"Coffee\" or \"Sake\"; reuse one they have."));
+        properties.put("department", Map.of("type", "string",
+                "description", "From list_departments, for when it's added to a list."));
+        properties.put("comment", Map.of("type", "string", "description", "A note, e.g. the roast or size the user likes."));
+        properties.put("stores", Map.of("type", "array", "items", Map.of("type", "string"),
+                "description", "Every store it's sold at, e.g. [\"Costco\", \"Publix\"]; replaces the list (prices "
+                        + "of stores kept stay)."));
+        properties.put("productUrl", Map.of("type", "string", "description", "A product page, for its photo."));
+        return properties;
     }
 
     private static Map<String, Object> tool(String name, String description, Map<String, Object> properties,
@@ -227,7 +313,8 @@ public class McpController {
         }
         return Map.of("name", name, "description", description, "inputSchema", schema,
                 "annotations", Map.of("readOnlyHint", readOnly, "destructiveHint", name.startsWith("remove"),
-                        "openWorldHint", name.equals("add_item_to_list") || name.equals("set_item_photo")));
+                        "openWorldHint", name.equals("add_item_to_list") || name.equals("set_item_photo")
+                                || name.equals("save_favorite")));
     }
 
     private static Map<String, Object> text(String text) {
@@ -290,6 +377,39 @@ public class McpController {
             throw new IllegalArgumentException(name + " is too large.");
         }
         return value == null ? null : value.intValue();
+    }
+
+    /** A price: a number, or text such as "$12.99". */
+    private static BigDecimal decimal(JsonNode arguments, String name) {
+        JsonNode value = arguments.path(name);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (value.isNumber()) {
+            return value.decimalValue();
+        }
+        if (value.isString() && value.asString().strip().matches("\\$?\\s*\\d{1,8}(\\.\\d{1,2})?")) {
+            return new BigDecimal(value.asString().replaceAll("[$\\s]", ""));
+        }
+        throw new IllegalArgumentException(name + " must be a number, e.g. 12.99.");
+    }
+
+    private static List<String> texts(JsonNode arguments, String name) {
+        JsonNode value = arguments.path(name);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (!value.isArray()) {
+            throw new IllegalArgumentException(name + " must be a list of names.");
+        }
+        List<String> texts = new ArrayList<>();
+        for (JsonNode element : value) {
+            if (!element.isString() || element.asString().isBlank()) {
+                throw new IllegalArgumentException(name + " must be a list of names.");
+            }
+            texts.add(element.asString().strip());
+        }
+        return texts;
     }
 
     private static Boolean bool(JsonNode arguments, String name) {

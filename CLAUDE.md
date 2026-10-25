@@ -19,7 +19,7 @@ for the client.
 ## Commands
 
 ```sh
-./mvnw test                      # all tests (about 90; under a minute)
+./mvnw test                      # all tests (about 120; under a minute)
 ./mvnw -q -DskipTests package    # target/server-0.0.1-SNAPSHOT.jar
 ./mvnw clean test                # when tests fail with "Unresolved compilation problem" (see Gotchas)
 java -jar target/server-0.0.1-SNAPSHOT.jar                     # http://localhost:8080, data in ./data/
@@ -45,6 +45,7 @@ first. CI (`.github/workflows/ci.yml`) runs `./mvnw verify` on Java 25.
   and caches their icons (`/api/store-icons/{key}`). A store can have more than one website (`Store.otherDomains`:
   costcobusinessdelivery.com is Costco); "Add to HList" picks the list by them.
 - `photos/`: item photos (see below).
+- `favorites/`: favorite products (see below).
 - `web/`: `SafeDownloader` and `AddressPolicy`, the only way the server fetches outside URLs (HTTPS only, public
   addresses only, checked again on every redirect, size and time limits). Use it for any new outbound fetch.
 - `assistant/`: the MCP server for AI assistants (see below).
@@ -73,8 +74,8 @@ Face ID / Touch ID sign-in through Spring Security's WebAuthn support (`spring-s
 ## AI assistants (`assistant/`)
 
 An MCP server at `POST /mcp` (Streamable HTTP, plain JSON replies, no sessions; `GET` answers 405) lets Claude or
-another assistant find lists, read them, search the user's item history (`search_item_history`, optionally by store)
-and add items (`add_item_to_list`: copy a past item with `fromItemId`, or a new one with a `productUrl` for its
+another assistant find lists, read them, search the user's item history (`search_item_history`, optionally by store),
+work with favorites (see Favorites) and add items (`add_item_to_list`: copy a past item with `fromItemId`, or a new one with a `productUrl` for its
 photo). The workflow the assistant should follow is in `McpController.INSTRUCTIONS`.
 
 - Auth: access tokens (`hlist_...`, stored as SHA-256 in `access_token`), created in the mobile client's Account
@@ -93,6 +94,26 @@ photo). The workflow the assistant should follow is in `McpController.INSTRUCTIO
   brand (or, without one, its product name) isn't the item's brand, `add_item_to_list` warns (and doesn't use a page
   that names another brand) and `set_item_photo` refuses. A past item copied as another brand loses its photo.
 - Departments are never created by the assistant (they're shared); brands are.
+
+## Favorites (`favorites/`)
+
+Products the user buys again and again, apart from lists and stores, grouped by the user's own free-text
+`category` ("Coffee", "Sake"; matched case-insensitively to an existing one). Tables `favorite` and
+`favorite_store` (one row per store: name, last seen `price`, `package_size`, `product_url`, `price_checked_at`).
+
+- `/api/favorites`: GET (stores cheapest first), POST, PUT (null `stores` keeps them; an unchanged price keeps its
+  `priceCheckedAt`), DELETE. `POST /api/favorites/from-item {itemId, category}` copies an item (name, brand,
+  department, notes, photo; stores from the lists it was on); an item that already is one answers 200 with it.
+  `POST /api/favorites/{id}/add-to-list {listId}` adds a new item sharing the favorite's photo, never a duplicate
+  (`outcome`: added, unchecked, already_on_list).
+- Store names HList knows are stored as `StoreCatalog` spells them ("costco" → "Costco"), others as typed.
+- A favorite's photo is shared with items made from it, so photo cleanup (`PhotoRepository`) and the brand and
+  department in-use checks also look at `favorite`.
+- Live updates: `DataChangedEvent.favorites(username)`.
+- Assistants (`assistant/FavoriteTools`): `search_favorites` (with each store's newest open list), `save_favorite`,
+  `remove_favorite`, `record_store_price`, and `add_item_to_list` with `fromFavoriteId`. The server never fetches
+  prices itself (store sites block it); `McpController.INSTRUCTIONS` has the assistant search each store's site,
+  record what it finds and add the favorite to the cheapest store's open list.
 
 ## Photos (`photos/`)
 
