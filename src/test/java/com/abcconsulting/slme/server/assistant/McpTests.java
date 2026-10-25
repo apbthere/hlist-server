@@ -241,6 +241,8 @@ class McpTests {
         String again = tool(token, "add_item_to_list", Map.of("listId", lastWeek, "name", "paper towels"));
         assertEquals("already_on_list", JsonPath.read(again, "$.outcome"));
         long towelsId = ((Number) JsonPath.read(added, "$.item.itemId")).longValue();
+        // Something still to buy, so checking off the towels doesn't mark the list done.
+        tool(token, "add_item_to_list", Map.of("listId", lastWeek, "name", "Dish Soap"));
         mockMvc.perform(patch("/api/shopping-lists/" + lastWeek + "/items/" + towelsId + "/completion")
                         .with(httpBasic(user, PASSWORD)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"completed\":true}"))
@@ -280,6 +282,33 @@ class McpTests {
         toolError(stranger, "get_list_items", Map.of("listId", thisWeek))
                 .andExpect(jsonPath("$.result.content[0].text", containsString("No list")));
         toolError(stranger, "add_item_to_list", Map.of("listId", thisWeek, "name", "Stolen"));
+    }
+
+    @Test
+    void listsMarkedDoneAreOnlyAddedToWhenReopened() throws Exception {
+        String user = createUser();
+        String token = token(user);
+        long listId = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Whole Foods")),
+                "$.listId")).longValue();
+        long beetsId = ((Number) JsonPath.read(tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Beets")),
+                "$.item.itemId")).longValue();
+        // Checking off the last item marks the list done.
+        mockMvc.perform(patch("/api/shopping-lists/" + listId + "/items/" + beetsId + "/completion")
+                        .with(httpBasic(user, PASSWORD)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"completed\":true}"))
+                .andExpect(status().isNoContent());
+        long favoriteId = ((Number) JsonPath.read(tool(token, "save_favorite", Map.of("name", "Coffee Beans")),
+                "$.favoriteId")).longValue();
+
+        toolError(token, "add_item_to_list", Map.of("listId", listId, "name", "Coffee Beans"))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("\"Whole Foods\" is marked done")));
+        toolError(token, "add_item_to_list", Map.of("listId", listId, "fromFavoriteId", favoriteId))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("reopenList")));
+        assertEquals(1, JsonPath.<List<?>>read(tool(token, "get_list_items", Map.of("listId", listId)), "$").size());
+
+        assertEquals("added", JsonPath.read(tool(token, "add_item_to_list",
+                Map.of("listId", listId, "fromFavoriteId", favoriteId, "reopenList", true)), "$.outcome"));
+        assertEquals(List.of((int) listId), JsonPath.read(tool(token, "list_shopping_lists", Map.of()), "$[*].listId"));
     }
 
     @Test

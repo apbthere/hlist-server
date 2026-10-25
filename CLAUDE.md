@@ -90,6 +90,8 @@ photo). The workflow the assistant should follow is in `McpController.INSTRUCTIO
   memory. `/oauth/token`, `/oauth/register` and the metadata have their own security chain (no CSRF, sessions or
   Basic sign-in). `/mcp` accepts only access tokens, never a session cookie, so it needs no CSRF token.
 - Adding never duplicates: an item already on the list is reported, or unchecked if it was checked off.
+- Lists marked done (by hand, or because everything was checked off) are past trips: `add_item_to_list` refuses
+  them unless `reopenList` is true (adding would reopen the list). Grok once added to a done list.
 - Product pages of another brand: assistants pick links from search results without opening them. When the page's
   brand (or, without one, its product name) isn't the item's brand, `add_item_to_list` warns (and doesn't use a page
   that names another brand) and `set_item_photo` refuses. A past item copied as another brand loses its photo.
