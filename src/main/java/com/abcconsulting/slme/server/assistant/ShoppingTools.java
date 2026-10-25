@@ -1,5 +1,6 @@
 package com.abcconsulting.slme.server.assistant;
 
+import com.abcconsulting.slme.server.favorites.Favorite;
 import com.abcconsulting.slme.server.favorites.FavoriteService;
 import com.abcconsulting.slme.server.model.Brand;
 import com.abcconsulting.slme.server.model.Department;
@@ -187,7 +188,7 @@ public class ShoppingTools {
 
     /** What to add: a past item to copy, or a new item described by name (and optionally its product page). */
     public record AddRequest(long listId, Long fromItemId, String name, String brand, String department,
-            Integer quantity, String comment, String productUrl, boolean allowDuplicate) {
+            Integer quantity, String comment, String productUrl, boolean allowDuplicate, boolean reopenList) {
     }
 
     /**
@@ -197,7 +198,7 @@ public class ShoppingTools {
      * Failing those, its photo is the best Open Food Facts match, as the clients suggest.
      */
     public AddResult addItem(String username, AddRequest request) {
-        ownList(request.listId(), username);
+        listToAddTo(request.listId(), username, request.reopenList());
         if (request.quantity() != null && (request.quantity() < 1 || request.quantity() > 999)) {
             throw new IllegalArgumentException("The quantity must be between 1 and 999.");
         }
@@ -338,14 +339,22 @@ public class ShoppingTools {
     }
 
     /** Adds a favorite to a list with its name, brand, department, notes and photo, unless the list has it already. */
-    public AddResult addFavorite(String username, long listId, long favoriteId, Integer quantity) {
-        ownList(listId, username);
-        FavoriteService.AddedToList added;
+    public AddResult addFavorite(String username, long listId, long favoriteId, Integer quantity, boolean reopenList,
+            String department) {
+        listToAddTo(listId, username, reopenList);
+        Favorite favorite;
         try {
-            added = favorites.addToList(favoriteId, username, listId, quantity);
+            favorite = favorites.get(favoriteId, username);
         } catch (NoSuchElementException missing) {
             throw new NoSuchElementException("No favorite " + favoriteId + ". Use search_favorites for the favorite IDs.");
         }
+        Long departmentId = department == null ? null : departmentId(department, departmentNames());
+        if (departmentId == null && favorites.departmentFor(username, favorite) == null) {
+            // Without one the item lands under "Other" on the list, and assistants can't move it later.
+            throw new IllegalArgumentException(favorite.name() + " has no department, so nothing was added. Pick the "
+                    + "best fit from list_departments and pass it as department; HList keeps it on the favorite too.");
+        }
+        FavoriteService.AddedToList added = favorites.addToList(favoriteId, username, listId, quantity, departmentId);
         ShoppingListItem item = shopping.getShoppingItemsByList(listId, username).stream()
                 .filter(entry -> entry.itemId() == added.itemId())
                 .findFirst()
@@ -447,6 +456,21 @@ public class ShoppingTools {
                 .filter(list -> username.equals(list.username()))
                 .orElseThrow(() -> new NoSuchElementException(
                         "No list " + listId + ". Use list_shopping_lists for the list IDs."));
+    }
+
+    /**
+     * The list to add to. A list marked done (by hand, or because everything on it was checked off) is a past trip,
+     * and adding to it would reopen it, so that needs reopenList: the user asked for that list.
+     */
+    private ShoppingList listToAddTo(long listId, String username, boolean reopenList) {
+        ShoppingList list = ownList(listId, username);
+        if (list.completed() && !reopenList) {
+            throw new IllegalArgumentException("\"" + list.shoppingListName() + "\" is marked done, so nothing was added. "
+                    + "Add it to an open list instead (list_shopping_lists without includeCompleted); if there's none "
+                    + "for that store, ask the user before creating one. Pass reopenList true only if the user asked "
+                    + "for this list.");
+        }
+        return list;
     }
 
     private boolean matchesList(ShoppingList list, String wanted) {

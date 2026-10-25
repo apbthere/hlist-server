@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -241,6 +242,8 @@ class McpTests {
         String again = tool(token, "add_item_to_list", Map.of("listId", lastWeek, "name", "paper towels"));
         assertEquals("already_on_list", JsonPath.read(again, "$.outcome"));
         long towelsId = ((Number) JsonPath.read(added, "$.item.itemId")).longValue();
+        // Something still to buy, so checking off the towels doesn't mark the list done.
+        tool(token, "add_item_to_list", Map.of("listId", lastWeek, "name", "Dish Soap"));
         mockMvc.perform(patch("/api/shopping-lists/" + lastWeek + "/items/" + towelsId + "/completion")
                         .with(httpBasic(user, PASSWORD)).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"completed\":true}"))
@@ -283,8 +286,37 @@ class McpTests {
     }
 
     @Test
+    void listsMarkedDoneAreOnlyAddedToWhenReopened() throws Exception {
+        String user = createUser();
+        String token = token(user);
+        long listId = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Whole Foods")),
+                "$.listId")).longValue();
+        long beetsId = ((Number) JsonPath.read(tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Beets")),
+                "$.item.itemId")).longValue();
+        // Checking off the last item marks the list done.
+        mockMvc.perform(patch("/api/shopping-lists/" + listId + "/items/" + beetsId + "/completion")
+                        .with(httpBasic(user, PASSWORD)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"completed\":true}"))
+                .andExpect(status().isNoContent());
+        long favoriteId = ((Number) JsonPath.read(tool(token, "save_favorite", Map.of("name", "Coffee Beans")),
+                "$.favoriteId")).longValue();
+
+        toolError(token, "add_item_to_list", Map.of("listId", listId, "name", "Coffee Beans"))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("\"Whole Foods\" is marked done")));
+        toolError(token, "add_item_to_list", Map.of("listId", listId, "fromFavoriteId", favoriteId))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("reopenList")));
+        assertEquals(1, JsonPath.<List<?>>read(tool(token, "get_list_items", Map.of("listId", listId)), "$").size());
+
+        assertEquals("added", JsonPath.read(tool(token, "add_item_to_list",
+                Map.of("listId", listId, "fromFavoriteId", favoriteId, "reopenList", true, "department", department(user))),
+                "$.outcome"));
+        assertEquals(List.of((int) listId), JsonPath.read(tool(token, "list_shopping_lists", Map.of()), "$[*].listId"));
+    }
+
+    @Test
     void favoritesRememberPricesAndGoOnTheCheapestStoresList() throws Exception {
-        String token = token(createUser());
+        String user = createUser();
+        String token = token(user);
         long costco = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Costco")),
                 "$.listId")).longValue();
         long publix = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Publix run")),
@@ -311,8 +343,16 @@ class McpTests {
         assertEquals(List.of((int) favoriteId), JsonPath.read(found, "$.favorites[*].favoriteId"));
         assertTrue(JsonPath.<List<?>>read(tool(token, "search_favorites", Map.of("query", "sake")), "$.favorites").isEmpty());
 
-        String added = tool(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", favoriteId));
+        // Neither the favorite nor the past item has a department, so the assistant has to give one.
+        toolError(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", favoriteId))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("list_departments")));
+        String department = department(user);
+        String added = tool(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", favoriteId,
+                "department", department));
         assertEquals("added", JsonPath.read(added, "$.outcome"));
+        assertEquals(department, JsonPath.read(added, "$.item.department"));
+        assertEquals(department, JsonPath.read(tool(token, "search_favorites", Map.of("query", "coffee")),
+                "$.favorites[0].department"));
         assertEquals("Lavazza", JsonPath.read(added, "$.item.brand"));
         assertEquals("already_on_list", JsonPath.read(
                 tool(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", favoriteId)), "$.outcome"));
@@ -327,6 +367,27 @@ class McpTests {
     }
 
     @Test
+    void favoritesFindTheirDepartmentOrAskForOne() throws Exception {
+        String user = createUser();
+        String token = token(user);
+        String coffeeAisle = department(user);
+        long listId = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Publix")),
+                "$.listId")).longValue();
+        tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Espresso Beans", "department", coffeeAisle));
+
+        // From a past item with the same name, then from favorites in the same category.
+        String espresso = tool(token, "save_favorite", Map.of("name", "Espresso Beans", "category", "Coffee"));
+        assertEquals(coffeeAisle, JsonPath.read(espresso, "$.department"));
+        assertFalse(espresso.contains("warnings"), "no warnings when it has a department");
+        String tarrazu = tool(token, "save_favorite", Map.of("name", "Costa Rica Tarrazu", "category", "coffee"));
+        assertEquals(coffeeAisle, JsonPath.read(tarrazu, "$.department"));
+
+        String sake = tool(token, "save_favorite", Map.of("name", "Junmai", "category", "Sake"));
+        assertNull(JsonPath.read(sake, "$.department"));
+        assertTrue(JsonPath.<String>read(sake, "$.warnings[0]").contains("list_departments"));
+    }
+
+    @Test
     void historyMatchesPluralsAndSoundsAlikeSpellings() {
         List<String> words = ShoppingTools.words("Kirkland Signature Paper Towels");
         assertTrue(ShoppingTools.matchesAny("towel", words));
@@ -335,6 +396,15 @@ class McpTests {
         assertTrue(ShoppingTools.matchesAny("pap", words));
         assertFalse(ShoppingTools.matchesAny("milk", words));
         assertEquals("R163", ShoppingTools.soundex("Robert"));
+    }
+
+    /** A new department, named after the user so tests don't share it. */
+    private String department(String user) throws Exception {
+        String name = "Coffee-" + user;
+        mockMvc.perform(post("/api/departments").with(httpBasic(user, PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"" + name + "\"}"))
+                .andExpect(status().isCreated());
+        return name;
     }
 
     private static byte[] jpeg() throws Exception {

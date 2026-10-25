@@ -39,7 +39,8 @@ public class McpController {
             HList is the user's shopping list app. Lists are usually named after a store ("Costco", "Publix run").
             To add something to a list:
             1. Find the list with list_shopping_lists (search "costco" finds Costco lists). Use the newest open one
-               unless the user names another; if there is none, ask before creating one.
+               unless the user names another; if there is none, ask before creating one. Never add to a list
+               that's marked done (a past trip) unless the user asks for that list.
             2. Read it with get_list_items. If the item is already there, say so instead of adding it again.
             3. Look for it in search_item_history (with store "costco" for Costco items). If a past item matches what
                the user asked for, add it with add_item_to_list and fromItemId, which keeps its brand, department
@@ -74,7 +75,8 @@ public class McpController {
               has no open list, ask before creating one. Tell the user the prices you compared, where each came
               from (online prices can differ from the shelf), and where you added it.
             - To make something a favorite, use save_favorite (fromItemId copies a past item) with a category the
-              user already has (search_favorites lists them) when one fits.""";
+              user already has (search_favorites lists them) when one fits, and the best fit from list_departments
+              as its department (where it goes on a list).""";
 
     private final ShoppingTools tools;
     private final FavoriteTools favoriteTools;
@@ -144,12 +146,14 @@ public class McpController {
                         text(arguments, "query"), text(arguments, "store"));
                 case "add_item_to_list" -> number(arguments, "fromFavoriteId") != null
                         ? tools.addFavorite(username, required(arguments, "listId"),
-                                required(arguments, "fromFavoriteId"), integer(arguments, "quantity"))
+                                required(arguments, "fromFavoriteId"), integer(arguments, "quantity"),
+                                Boolean.TRUE.equals(bool(arguments, "reopenList")), text(arguments, "department"))
                         : tools.addItem(username, new ShoppingTools.AddRequest(
                         required(arguments, "listId"), number(arguments, "fromItemId"), text(arguments, "name"),
                         text(arguments, "brand"), text(arguments, "department"),
                         integer(arguments, "quantity"), text(arguments, "comment"), text(arguments, "productUrl"),
-                        Boolean.TRUE.equals(bool(arguments, "allowDuplicate"))));
+                        Boolean.TRUE.equals(bool(arguments, "allowDuplicate")),
+                        Boolean.TRUE.equals(bool(arguments, "reopenList"))));
                 case "remove_item_from_list" -> tools.removeItem(username,
                         required(arguments, "listId"), required(arguments, "itemId"));
                 case "set_item_photo" -> tools.setItemPhoto(username, required(arguments, "listId"),
@@ -191,7 +195,8 @@ public class McpController {
                                 "search", Map.of("type", "string",
                                         "description", "A store (\"costco\") or words from the list's name."),
                                 "includeCompleted", Map.of("type", "boolean",
-                                        "description", "Also lists whose items are all checked off. Default false.")),
+                                        "description", "Also lists marked done (past trips), for reading only; "
+                                                + "items aren't added to them. Default false.")),
                         List.of(), true),
                 tool("create_shopping_list",
                         "Creates a shopping list. Name it after the store (\"Costco\") so HList shows its icon.",
@@ -219,27 +224,7 @@ public class McpController {
                                 + "costco.com\") and pass the product page's link from the results as productUrl; "
                                 + "you don't need to open it. HList takes the photo from it. To add a favorite, "
                                 + "give fromFavoriteId instead.",
-                        Map.of(
-                                "listId", listId,
-                                "fromItemId", Map.of("type", "integer",
-                                        "description", "A past item to add again, from search_item_history."),
-                                "fromFavoriteId", Map.of("type", "integer",
-                                        "description", "A favorite to add, from search_favorites (keeps its brand, "
-                                                + "department, notes and photo)."),
-                                "name", Map.of("type", "string",
-                                        "description", "A new item's name, short like a shelf label, without the brand. "
-                                                + "Taken from the product page when left out."),
-                                "brand", Map.of("type", "string",
-                                        "description", "The brand, e.g. \"Kirkland Signature\"."),
-                                "department", Map.of("type", "string",
-                                        "description", "The best fit from list_departments (paper towels: household or paper goods); "
-                                                + "leave it out only when none fits. Not needed with fromItemId."),
-                                "quantity", Map.of("type", "integer", "minimum", 1, "description", "Default 1."),
-                                "comment", Map.of("type", "string", "description", "A note, e.g. a size or flavor."),
-                                "productUrl", Map.of("type", "string",
-                                        "description", "The product's web page (or image) address, for its photo."),
-                                "allowDuplicate", Map.of("type", "boolean",
-                                        "description", "Add it even if the list already has an item with this name.")),
+                        addItemProperties(listId),
                         List.of("listId"), false),
                 tool("remove_item_from_list", "Removes an item from a list.",
                         Map.of("listId", listId,
@@ -284,6 +269,35 @@ public class McpController {
                         List.of("favoriteId", "store"), false));
     }
 
+    private static Map<String, Object> addItemProperties(Map<String, Object> listId) {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("listId", listId);
+        properties.put("fromItemId", Map.of("type", "integer",
+                "description", "A past item to add again, from search_item_history."));
+        properties.put("fromFavoriteId", Map.of("type", "integer",
+                "description", "A favorite to add, from search_favorites (keeps its brand, "
+                + "department, notes and photo)."));
+        properties.put("name", Map.of("type", "string",
+                "description", "A new item's name, short like a shelf label, without the brand. "
+                + "Taken from the product page when left out."));
+        properties.put("brand", Map.of("type", "string",
+                "description", "The brand, e.g. \"Kirkland Signature\"."));
+        properties.put("department", Map.of("type", "string",
+                "description", "The best fit from list_departments (paper towels: household or paper goods); "
+                + "leave it out only when none fits. Not needed with fromItemId, nor with fromFavoriteId unless the "
+                + "favorite has none (then it's kept on the favorite too)."));
+        properties.put("quantity", Map.of("type", "integer", "minimum", 1, "description", "Default 1."));
+        properties.put("comment", Map.of("type", "string", "description", "A note, e.g. a size or flavor."));
+        properties.put("productUrl", Map.of("type", "string",
+                "description", "The product's web page (or image) address, for its photo."));
+        properties.put("allowDuplicate", Map.of("type", "boolean",
+                "description", "Add it even if the list already has an item with this name."));
+        properties.put("reopenList", Map.of("type", "boolean",
+                "description", "Add to a list marked done, reopening it. Only when the user "
+                + "asked for that list."));
+        return properties;
+    }
+
     private static Map<String, Object> favoriteProperties() {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put("favoriteId", Map.of("type", "integer", "description", "The favorite to change."));
@@ -294,7 +308,7 @@ public class McpController {
         properties.put("category", Map.of("type", "string",
                 "description", "The user's grouping, e.g. \"Coffee\" or \"Sake\"; reuse one they have."));
         properties.put("department", Map.of("type", "string",
-                "description", "From list_departments, for when it's added to a list."));
+                "description", "The best fit from list_departments: where it goes when added to a list."));
         properties.put("comment", Map.of("type", "string", "description", "A note, e.g. the roast or size the user likes."));
         properties.put("stores", Map.of("type", "array", "items", Map.of("type", "string"),
                 "description", "Every store it's sold at, e.g. [\"Costco\", \"Publix\"]; replaces the list (prices "

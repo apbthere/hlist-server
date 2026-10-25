@@ -6,6 +6,7 @@ import com.abcconsulting.slme.server.model.ShoppingList;
 import com.abcconsulting.slme.server.photos.PhotoService;
 import com.abcconsulting.slme.server.service.ShoppingListService;
 import com.abcconsulting.slme.server.stores.StoreCatalog;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -56,7 +57,14 @@ public class FavoriteTools {
     }
 
     public record FavoriteResult(long favoriteId, String name, String brand, String category, String department,
-            String comment, boolean hasPhoto, List<StorePrice> stores) {
+            String comment, boolean hasPhoto, List<StorePrice> stores,
+            @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> warnings) {
+
+        FavoriteResult withWarning(String warning) {
+            List<String> all = new ArrayList<>(warnings);
+            all.add(warning);
+            return new FavoriteResult(favoriteId, name, brand, category, department, comment, hasPhoto, stores, all);
+        }
     }
 
     public record SearchResult(List<String> categories, List<FavoriteResult> favorites) {
@@ -162,7 +170,13 @@ public class FavoriteTools {
                 comment, photoId, storeInputs);
         Favorite saved = base == null ? favorites.create(username, input) : favorites.update(base.favoriteId(), username, input);
         log.info("Saved favorite {} for {}", saved.favoriteId(), username);
-        return result(saved, shoppingTools.brandNames(), departments, openListsByStore(username));
+        FavoriteResult result = result(saved, shoppingTools.brandNames(), departments, openListsByStore(username));
+        if (saved.departmentId() == null) {
+            result = result.withWarning("It has no department, so on a list it would be under Other. Pick the best fit "
+                    + "from list_departments and call save_favorite with favoriteId " + saved.favoriteId()
+                    + " and department.");
+        }
+        return result;
     }
 
     public String remove(String username, long favoriteId) {
@@ -226,6 +240,6 @@ public class FavoriteTools {
                     return new StorePrice(store.name(), store.price(), store.size(), store.productUrl(),
                             store.priceCheckedAt(), list == null ? null : list.shoppingListId(),
                             list == null ? null : list.shoppingListName());
-                }).toList());
+                }).toList(), List.of());
     }
 }

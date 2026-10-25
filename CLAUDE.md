@@ -90,6 +90,8 @@ photo). The workflow the assistant should follow is in `McpController.INSTRUCTIO
   memory. `/oauth/token`, `/oauth/register` and the metadata have their own security chain (no CSRF, sessions or
   Basic sign-in). `/mcp` accepts only access tokens, never a session cookie, so it needs no CSRF token.
 - Adding never duplicates: an item already on the list is reported, or unchecked if it was checked off.
+- Lists marked done (by hand, or because everything was checked off) are past trips: `add_item_to_list` refuses
+  them unless `reopenList` is true (adding would reopen the list). Grok once added to a done list.
 - Product pages of another brand: assistants pick links from search results without opening them. When the page's
   brand (or, without one, its product name) isn't the item's brand, `add_item_to_list` warns (and doesn't use a page
   that names another brand) and `set_item_photo` refuses. A past item copied as another brand loses its photo.
@@ -106,6 +108,11 @@ Products the user buys again and again, apart from lists and stores, grouped by 
   department, notes, photo; stores from the lists it was on); an item that already is one answers 200 with it.
   `POST /api/favorites/{id}/add-to-list {listId}` adds a new item sharing the favorite's photo, never a duplicate
   (`outcome`: added, unchecked, already_on_list).
+- Departments: a favorite created without one takes the department of the latest item with its name (and brand),
+  else the one most favorites in its category have (`FavoriteService.likelyDepartment`); adding to a list does the
+  same for a favorite that still has none. Assistants must then give one: `add_item_to_list` with
+  `fromFavoriteId` refuses without a department (and keeps the one given on the favorite), and `save_favorite`
+  answers with a warning.
 - Store names HList knows are stored as `StoreCatalog` spells them ("costco" → "Costco"), others as typed.
 - A favorite's photo is shared with items made from it, so photo cleanup (`PhotoRepository`) and the brand and
   department in-use checks also look at `favorite`.
