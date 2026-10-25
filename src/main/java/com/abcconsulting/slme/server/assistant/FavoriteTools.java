@@ -130,20 +130,30 @@ public class FavoriteTools {
         if (request.brand() != null) {
             brandId = shoppingTools.brandId(request.brand(), shoppingTools.brandNames());
         }
+        // A page that can't be read, or is another brand's, costs the photo but not the save.
+        List<String> warnings = new ArrayList<>();
         if (request.productUrl() != null) {
-            PhotoService.ImportedPhoto imported = photos.importFromWeb(username, request.productUrl().strip());
-            String brand = request.brand() != null ? request.brand() : shoppingTools.brandNames().get(brandId);
-            String otherBrand = ShoppingTools.otherBrand(imported, brand);
-            if (otherBrand != null) {
-                throw new IllegalArgumentException("That page is for " + otherBrand + ", not " + brand
-                        + ", so nothing was saved. Find the " + brand + " product's page.");
-            }
-            photoId = imported.photoId();
-            if (name == null || name.isBlank()) {
-                name = imported.title();
-            }
-            if (brandId == null && imported.brand() != null) {
-                brandId = shoppingTools.brandId(imported.brand(), shoppingTools.brandNames());
+            try {
+                PhotoService.ImportedPhoto imported = photos.importFromWeb(username, request.productUrl().strip());
+                String brand = request.brand() != null ? request.brand() : shoppingTools.brandNames().get(brandId);
+                String otherBrand = ShoppingTools.otherBrand(imported, brand);
+                if (otherBrand != null) {
+                    warnings.add("That page is for " + otherBrand + ", not " + brand + ", so its photo wasn't used.");
+                } else {
+                    photoId = imported.photoId();
+                    if (name == null || name.isBlank()) {
+                        name = imported.title();
+                    }
+                    if (brandId == null && imported.brand() != null) {
+                        brandId = shoppingTools.brandId(imported.brand(), shoppingTools.brandNames());
+                    }
+                }
+            } catch (RuntimeException failed) {
+                log.info("Couldn't import a photo from {}: {}", request.productUrl(), failed.getMessage());
+                // The importer's messages end with advice for people in the app; the first sentence is the reason.
+                String reason = failed.getMessage().split("\\. ")[0].replaceFirst("\\.$", "");
+                warnings.add("HList couldn't get a photo from that page (" + reason
+                        + "). Store sites such as publix.com block servers.");
             }
         }
         if (name == null || name.isBlank()) {
@@ -166,11 +176,27 @@ public class FavoriteTools {
                         .orElse(new FavoriteService.StoreInput(store, null, null, null)));
             }
         }
+        if (photoId == null) {
+            // As for new items on lists: a past item's photo, else the brand's product on Open Food Facts.
+            String productName = name;
+            String brandName = shoppingTools.brandNames().get(brandId);
+            photoId = shoppingTools.pastPhoto(username, productName, brandId)
+                    .or(() -> shoppingTools.productDatabasePhoto(username, productName, brandName))
+                    .orElse(null);
+        }
         FavoriteService.FavoriteInput input = new FavoriteService.FavoriteInput(name, brandId, departmentId, category,
                 comment, photoId, storeInputs);
         Favorite saved = base == null ? favorites.create(username, input) : favorites.update(base.favoriteId(), username, input);
         log.info("Saved favorite {} for {}", saved.favoriteId(), username);
         FavoriteResult result = result(saved, shoppingTools.brandNames(), departments, openListsByStore(username));
+        for (String warning : warnings) {
+            result = result.withWarning(warning);
+        }
+        if (saved.photoId() == null) {
+            result = result.withWarning("It has no photo. Search the web for the product and call save_favorite with "
+                    + "favoriteId " + saved.favoriteId() + " and productUrl: its page at the store, or the product "
+                    + "image's own address (e.g. an images.publixcdn.com link) when the store's site blocks HList.");
+        }
         if (saved.departmentId() == null) {
             result = result.withWarning("It has no department, so on a list it would be under Other. Pick the best fit "
                     + "from list_departments and call save_favorite with favoriteId " + saved.favoriteId()

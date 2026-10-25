@@ -113,6 +113,9 @@ Products the user buys again and again, apart from lists and stores, grouped by 
   same for a favorite that still has none. Assistants must then give one: `add_item_to_list` with
   `fromFavoriteId` refuses without a department (and keeps the one given on the favorite), and `save_favorite`
   answers with a warning.
+- Photos from `save_favorite`: a product page that can't be read (Publix's storefronts answer 401) or is another
+  brand's is a warning, not a refusal. A favorite still without a photo (also on a later save with only
+  `favoriteId`) takes a past item's (same name and brand), else the brand's Open Food Facts photo.
 - Store names HList knows are stored as `StoreCatalog` spells them ("costco" → "Costco"), others as typed.
 - A favorite's photo is shared with items made from it, so photo cleanup (`PhotoRepository`) and the brand and
   department in-use checks also look at `favorite`.

@@ -397,7 +397,7 @@ public class ShoppingTools {
      * of the results is the brand (the search falls back to any brand, and a wrong product's photo is worse than
      * none), or when it fails.
      */
-    private java.util.Optional<Long> productDatabasePhoto(String username, String name, String brand) {
+    java.util.Optional<Long> productDatabasePhoto(String username, String name, String brand) {
         if (brand == null || brand.isBlank()) {
             return java.util.Optional.empty();
         }
@@ -499,6 +499,16 @@ public class ShoppingTools {
                 .map(Store::key)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown store \"" + store + "\". HList knows "
                         + stores.all().stream().map(Store::name).collect(Collectors.joining(", ")) + "."));
+    }
+
+    /** The photo of the latest item with this name and brand, if it has one. */
+    java.util.Optional<Long> pastPhoto(String username, String name, Long brandId) {
+        String wanted = normalize(name);
+        return items.findAllByUsername(username).stream()
+                .filter(item -> item.photoId() != null && normalize(item.itemName()).equals(wanted)
+                        && Objects.equals(item.brandId(), brandId))
+                .max(Comparator.comparing(Item::itemId))
+                .map(Item::photoId);
     }
 
     private Item latestNamed(String username, String name) {

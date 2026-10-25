@@ -378,13 +378,45 @@ class McpTests {
         // From a past item with the same name, then from favorites in the same category.
         String espresso = tool(token, "save_favorite", Map.of("name", "Espresso Beans", "category", "Coffee"));
         assertEquals(coffeeAisle, JsonPath.read(espresso, "$.department"));
-        assertFalse(espresso.contains("warnings"), "no warnings when it has a department");
+        assertFalse(espresso.contains("no department"), "no department warning when it has one");
         String tarrazu = tool(token, "save_favorite", Map.of("name", "Costa Rica Tarrazu", "category", "coffee"));
         assertEquals(coffeeAisle, JsonPath.read(tarrazu, "$.department"));
 
         String sake = tool(token, "save_favorite", Map.of("name", "Junmai", "category", "Sake"));
         assertNull(JsonPath.read(sake, "$.department"));
-        assertTrue(JsonPath.<String>read(sake, "$.warnings[0]").contains("list_departments"));
+        assertTrue(JsonPath.<List<String>>read(sake, "$.warnings").stream().anyMatch(warning -> warning.contains("list_departments")));
+    }
+
+    @Test
+    void favoritesAreSavedWhenTheirPageCantBeReadAndFindAPhotoElsewhere() throws Exception {
+        String token = token(createUser());
+        String page = "https://delivery.publix.com/store/publix/products/19020665-greenwise-sour-cream-organic";
+
+        // The test importer refuses every address, as Publix's storefront does.
+        String saved = tool(token, "save_favorite", Map.of("name", "Sour Cream", "brand", "GreenWise",
+                "category", "Dairy", "productUrl", page));
+        long favoriteId = ((Number) JsonPath.read(saved, "$.favoriteId")).longValue();
+        assertEquals(false, JsonPath.read(saved, "$.hasPhoto"));
+        List<String> warnings = JsonPath.read(saved, "$.warnings");
+        assertTrue(warnings.get(0).startsWith("HList couldn't get a photo from that page (That address can't be used)"));
+        assertTrue(warnings.get(1).contains("save_favorite with favoriteId " + favoriteId + " and productUrl"));
+
+        // Saving it again looks for a photo: the brand's product on Open Food Facts.
+        String image = "https://images.openfoodfacts.org/greenwise-sour-cream.jpg";
+        when(photoFinder.find("Sour Cream", "GreenWise")).thenReturn(List.of(
+                new ProductPhotoFinder.Suggestion("Organic Sour Cream", "GreenWise", image, image)));
+        doReturn(new PhotoImporter.Fetched(jpeg(), null, null)).when(photoImporter).fetchPicture(image);
+        String again = tool(token, "save_favorite", Map.of("favoriteId", favoriteId));
+        assertEquals(true, JsonPath.read(again, "$.hasPhoto"));
+        assertFalse(again.contains("no photo"));
+
+        // Another brand's page doesn't stop the save either, and its photo isn't used.
+        String daisy = "https://www.example.com/daisy-sour-cream";
+        doReturn(new PhotoImporter.Fetched(jpeg(), "Daisy Sour Cream", "Daisy")).when(photoImporter).fetchPicture(daisy);
+        String other = tool(token, "save_favorite", Map.of("name", "Light Sour Cream", "brand", "Breakstone's",
+                "productUrl", daisy));
+        assertEquals(false, JsonPath.read(other, "$.hasPhoto"));
+        assertTrue(JsonPath.<String>read(other, "$.warnings[0]").contains("That page is for Daisy"));
     }
 
     @Test
