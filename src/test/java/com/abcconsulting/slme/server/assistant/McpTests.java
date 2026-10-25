@@ -283,6 +283,50 @@ class McpTests {
     }
 
     @Test
+    void favoritesRememberPricesAndGoOnTheCheapestStoresList() throws Exception {
+        String token = token(createUser());
+        long costco = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Costco")),
+                "$.listId")).longValue();
+        long publix = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Publix run")),
+                "$.listId")).longValue();
+        String past = tool(token, "add_item_to_list", Map.of("listId", costco, "name", "Coffee Beans", "brand", "Lavazza"));
+
+        String saved = tool(token, "save_favorite", Map.of("fromItemId", JsonPath.read(past, "$.item.itemId"),
+                "category", "coffee"));
+        long favoriteId = ((Number) JsonPath.read(saved, "$.favoriteId")).longValue();
+        assertEquals("Coffee", JsonPath.read(saved, "$.category"));
+        assertEquals("Lavazza", JsonPath.read(saved, "$.brand"));
+        assertEquals(List.of("Costco"), JsonPath.read(saved, "$.stores[*].store"));
+
+        tool(token, "record_store_price", Map.of("favoriteId", favoriteId, "store", "costco", "price", 21.99, "size", "2.2 lb"));
+        tool(token, "record_store_price", Map.of("favoriteId", favoriteId, "store", "Publix", "price", "$15.49"));
+        tool(token, "record_store_price", Map.of("favoriteId", favoriteId, "store", "Aldi", "price", 9));
+        String priced = tool(token, "record_store_price", Map.of("favoriteId", favoriteId, "store", "Aldi", "available", false));
+        assertEquals(List.of("Publix", "Costco"), JsonPath.read(priced, "$.stores[*].store"));
+        assertEquals(List.of((int) publix, (int) costco), JsonPath.read(priced, "$.stores[*].openListId"));
+        assertEquals("2.2 lb", JsonPath.read(priced, "$.stores[1].size"));
+
+        String found = tool(token, "search_favorites", Map.of("query", "coffee"));
+        assertEquals(List.of("Coffee"), JsonPath.read(found, "$.categories"));
+        assertEquals(List.of((int) favoriteId), JsonPath.read(found, "$.favorites[*].favoriteId"));
+        assertTrue(JsonPath.<List<?>>read(tool(token, "search_favorites", Map.of("query", "sake")), "$.favorites").isEmpty());
+
+        String added = tool(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", favoriteId));
+        assertEquals("added", JsonPath.read(added, "$.outcome"));
+        assertEquals("Lavazza", JsonPath.read(added, "$.item.brand"));
+        assertEquals("already_on_list", JsonPath.read(
+                tool(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", favoriteId)), "$.outcome"));
+
+        toolError(token, "record_store_price", Map.of("favoriteId", favoriteId, "store", "Publix", "price", "cheap"));
+        toolError(token, "add_item_to_list", Map.of("listId", publix, "fromFavoriteId", 999999))
+                .andExpect(jsonPath("$.result.content[0].text", containsString("search_favorites")));
+        String stranger = token(createUser());
+        toolError(stranger, "remove_favorite", Map.of("favoriteId", favoriteId));
+        assertEquals("Removed from favorites.", tool(token, "remove_favorite", Map.of("favoriteId", favoriteId)));
+        assertTrue(JsonPath.<List<?>>read(tool(token, "search_favorites", Map.of()), "$.favorites").isEmpty());
+    }
+
+    @Test
     void historyMatchesPluralsAndSoundsAlikeSpellings() {
         List<String> words = ShoppingTools.words("Kirkland Signature Paper Towels");
         assertTrue(ShoppingTools.matchesAny("towel", words));

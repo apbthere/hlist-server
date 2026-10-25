@@ -90,13 +90,15 @@ public class ShoppingListItemDao {
 
     public int countItemsWithDepartment(Long departmentId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM item WHERE department_id = ?", Integer.class, departmentId);
+                "SELECT (SELECT COUNT(*) FROM item WHERE department_id = ?) + (SELECT COUNT(*) FROM favorite WHERE department_id = ?)",
+                Integer.class, departmentId, departmentId);
         return count == null ? 0 : count;
     }
 
     public int countItemsWithBrand(Long brandId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM item WHERE brand_id = ?", Integer.class, brandId);
+                "SELECT (SELECT COUNT(*) FROM item WHERE brand_id = ?) + (SELECT COUNT(*) FROM favorite WHERE brand_id = ?)",
+                Integer.class, brandId, brandId);
         return count == null ? 0 : count;
     }
 
