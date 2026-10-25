@@ -150,9 +150,7 @@ public class FavoriteTools {
                 }
             } catch (RuntimeException failed) {
                 log.info("Couldn't import a photo from {}: {}", request.productUrl(), failed.getMessage());
-                // The importer's messages end with advice for people in the app; the first sentence is the reason.
-                String reason = failed.getMessage().split("\\. ")[0].replaceFirst("\\.$", "");
-                warnings.add("HList couldn't get a photo from that page (" + reason
+                warnings.add("HList couldn't get a photo from that page (" + ShoppingTools.reason(failed)
                         + "). Store sites such as publix.com block servers.");
             }
         }

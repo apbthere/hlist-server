@@ -23,12 +23,14 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -119,6 +121,46 @@ class McpTests {
                 "itemId", JsonPath.read(added, "$.item.itemId"), "productUrl", page));
         assertEquals(true, JsonPath.read(replaced, "$.hasPhoto"));
         toolError(token, "set_item_photo", Map.of("listId", listId, "itemId", 999999, "productUrl", page));
+    }
+
+    @Test
+    void itemsLeftWithoutAPhotoAskForAProductPage() throws Exception {
+        String token = token(createUser());
+        long listId = ((Number) JsonPath.read(tool(token, "create_shopping_list", Map.of("name", "Costco")),
+                "$.listId")).longValue();
+
+        // A reseller's page without a picture, and nothing in Open Food Facts.
+        String page = "https://app.warehouserunner.example/costco/pork-shoulder";
+        doThrow(new IllegalArgumentException("That page doesn't name a product picture."
+                + " Save the picture to Photos and choose it from there instead.")).when(photoImporter).fetchPicture(page);
+        String pork = tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Pork Shoulder",
+                "brand", "Swift", "productUrl", page));
+        assertEquals(false, JsonPath.read(pork, "$.item.hasPhoto"));
+        String warnings = String.join("\n", JsonPath.<List<String>>read(pork, "$.warnings"));
+        assertTrue(warnings.contains("doesn't name a product picture"), warnings);
+        assertFalse(warnings.contains("Save the picture"), warnings);
+        assertTrue(warnings.contains("\"Swift Pork Shoulder costco.com\""), warnings);
+        assertTrue(warnings.contains("set_item_photo (itemId " + JsonPath.read(pork, "$.item.itemId") + ")"), warnings);
+        toolError(token, "set_item_photo", Map.of("listId", listId, "itemId", JsonPath.read(pork, "$.item.itemId"),
+                "productUrl", page)).andExpect(jsonPath("$.result.content[0].text",
+                        not(containsString("Save the picture"))));
+
+        // A copied past item without a photo takes Open Food Facts', and says so when there's none.
+        String milk = tool(token, "add_item_to_list", Map.of("listId", listId, "name", "Milk", "brand", "Kirkland"));
+        long milkId = ((Number) JsonPath.read(milk, "$.item.itemId")).longValue();
+        String copied = tool(token, "add_item_to_list", Map.of("listId", listId, "fromItemId", milkId,
+                "allowDuplicate", true));
+        assertEquals(false, JsonPath.read(copied, "$.item.hasPhoto"));
+        assertTrue(JsonPath.<String>read(copied, "$.warnings[0]").contains("set_item_photo"));
+
+        String image = "https://images.example/milk.jpg";
+        when(photoFinder.find("Milk", "Kirkland")).thenReturn(List.of(
+                new ProductPhotoFinder.Suggestion("Whole Milk", "Kirkland Signature", image, image)));
+        doReturn(new PhotoImporter.Fetched(jpeg(), null, null)).when(photoImporter).fetchPicture(image);
+        String withPhoto = tool(token, "add_item_to_list", Map.of("listId", listId, "fromItemId", milkId,
+                "allowDuplicate", true));
+        assertEquals(true, JsonPath.read(withPhoto, "$.item.hasPhoto"));
+        assertTrue(JsonPath.<List<?>>read(withPhoto, "$.warnings").isEmpty());
     }
 
     @Test
