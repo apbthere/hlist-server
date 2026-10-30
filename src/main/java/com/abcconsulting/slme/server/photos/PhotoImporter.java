@@ -42,6 +42,8 @@ public class PhotoImporter {
     private static final Set<String> IMAGE_PROPERTIES = Set.of("og:image:secure_url", "og:image", "og:image:url", "twitter:image");
     /** Stand-ins sites show when a product has no picture, e.g. Instacart's "missing-item-....png". */
     private static final Pattern PLACEHOLDER = Pattern.compile("(?i)(missing|placeholder|no[-_]?image)[^/]*$");
+    /** What Instacart storefronts add to product names: "Kirkland Signature Pot Roast Same-Day Delivery". */
+    private static final Pattern DELIVERY_SUFFIX = Pattern.compile("(?i)\\s+Same-Day Delivery(?: or Pickup)?$");
 
     private static final Pattern TITLE_TAG = Pattern.compile("<title[^>]*>([^<]*)</title>", Pattern.CASE_INSENSITIVE);
     private static final Pattern CHARACTER_REFERENCE = Pattern.compile("&(#[xX][0-9a-fA-F]+|#\\d+|amp|lt|gt|quot|apos|nbsp);");
@@ -67,7 +69,7 @@ public class PhotoImporter {
 
     /** The picture's bytes (JPEG, PNG or GIF), ready for {@link ImageProcessor}, and the page's product name. */
     public Fetched fetchPicture(String address) {
-        URI start = parse(address);
+        URI start = withoutSignIn(parse(address));
         // An image's own address may ask for a small size; try the larger one first.
         java.util.Optional<URI> larger = larger(start);
         if (larger.isPresent()) {
@@ -87,6 +89,11 @@ public class PhotoImporter {
         unsupportedFormat(first.body());
         if (!looksLikeHtml(first)) {
             throw new IllegalArgumentException("There's no picture at that address." + SAVE_INSTEAD);
+        }
+        if (sentToHomePage(start, first.url())) {
+            // Its pictures are the site's banners, not the product's.
+            throw new IllegalArgumentException("That page opens the site's sign-in page instead of the product."
+                    + " Try the product's page on another site, or save the picture to Photos and choose it from there.");
         }
         String html = new String(first.body(), StandardCharsets.UTF_8);
         List<URI> candidates = productImages(html, first.url());
@@ -125,6 +132,25 @@ public class PhotoImporter {
             throw new IllegalArgumentException("Enter a web address starting with https://");
         }
         return uri;
+    }
+
+    /**
+     * Costco Same-Day (sameday.costco.com) sends visitors who aren't signed in to its home page; the same product on
+     * instacart.com, which runs it, opens for anyone.
+     */
+    static URI withoutSignIn(URI page) {
+        if ("sameday.costco.com".equalsIgnoreCase(page.getHost()) && page.getRawPath() != null
+                && page.getRawPath().startsWith("/store/costco/products/")) {
+            return URI.create("https://www.instacart.com" + page.getRawPath());
+        }
+        return page;
+    }
+
+    /** Whether a product page's address led to the site's home page, as sites that want a sign-in do. */
+    static boolean sentToHomePage(URI asked, URI landed) {
+        boolean deep = asked.getPath() != null && asked.getPath().length() > 1;
+        boolean home = landed.getPath() == null || landed.getPath().isEmpty() || landed.getPath().equals("/");
+        return deep && home;
     }
 
     private SafeDownloader.Download download(URI url, String accept) {
@@ -231,7 +257,7 @@ public class PhotoImporter {
         if (title == null) {
             return null;
         }
-        String clean = unescape(title).replace('\u00a0', ' ').replaceAll("\\s+", " ").strip();
+        String clean = withoutDeliveryWords(unescape(title).replace('\u00a0', ' ').replaceAll("\\s+", " ").strip());
         if (clean.isEmpty()) {
             return null;
         }
@@ -385,8 +411,13 @@ public class PhotoImporter {
         return clean.isEmpty() ? null : clean;
     }
 
+    /** "Beef Pot Roast Same-Day Delivery" (an Instacart storefront's title) is "Beef Pot Roast". */
+    public static String withoutDeliveryWords(String name) {
+        return name == null ? null : DELIVERY_SUFFIX.matcher(name).replaceFirst("");
+    }
+
     /** "Jojo's Dark Chocolate Bites" by "Jojo's" is "Dark Chocolate Bites"; other names are kept as they are. */
-    static String withoutBrand(String title, String brand) {
+    public static String withoutBrand(String title, String brand) {
         if (title == null || brand == null) {
             return title;
         }
