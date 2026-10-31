@@ -32,6 +32,7 @@ class PhotoImporterTests {
 	private final Map<String, Page> pages = new ConcurrentHashMap<>();
 	private final List<String> requested = new CopyOnWriteArrayList<>();
 	private final List<String> accepts = new CopyOnWriteArrayList<>();
+	private final Map<String, String> redirects = new ConcurrentHashMap<>();
 
 	@BeforeEach
 	void startServer() throws IOException {
@@ -40,6 +41,12 @@ class PhotoImporterTests {
 			String target = exchange.getRequestURI().toString();
 			requested.add(target);
 			accepts.add(String.valueOf(exchange.getRequestHeaders().getFirst("Accept")));
+			if (redirects.containsKey(target)) {
+				exchange.getResponseHeaders().set("Location", redirects.get(target));
+				exchange.sendResponseHeaders(302, -1);
+				exchange.close();
+				return;
+			}
 			Page page = pages.get(target);
 			int status = page == null ? 404 : 200;
 			byte[] body = page == null ? "<h1>Not found</h1>".getBytes(StandardCharsets.UTF_8) : page.body();
@@ -250,6 +257,39 @@ class PhotoImporterTests {
 		assertArrayEquals(photo, fetched.picture());
 		assertEquals("Applewood Smoked Bacon", fetched.title());
 		assertEquals(List.of("/products/bacon", "/product-image/file/large_bacon.jpeg"), requested);
+	}
+
+	@Test
+	void refusesAProductPageThatSendsServersToTheSignInPage() {
+		// Like sameday.costco.com: without a sign-in, a product page redirects to the home page and its share banner.
+		redirects.put("/store/costco/products/32665-pot-roast", "/?next=%2Fstore%2Fcostco%2Fproducts%2F32665-pot-roast");
+		html("/?next=%2Fstore%2Fcostco%2Fproducts%2F32665-pot-roast",
+				"<meta property=\"og:title\" content=\"Costco Same-Day\"><meta property=\"og:image\" content=\"/Share_Banner.jpg\">");
+		pages.put("/Share_Banner.jpg", new Page("image/jpeg", TestImages.jpeg(40, 20)));
+
+		IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
+				() -> fetchPage("/store/costco/products/32665-pot-roast"));
+		assertTrue(refused.getMessage().contains("sign-in page"), refused.getMessage());
+		assertTrue(PhotoImporter.sentToHomePage(URI.create("https://a.test/p/1"), URI.create("https://a.test/")));
+		assertEquals(false, PhotoImporter.sentToHomePage(URI.create("https://a.test/"), URI.create("https://a.test/")));
+		assertEquals(false, PhotoImporter.sentToHomePage(URI.create("https://a.test/p/1"), URI.create("https://a.test/p/2")));
+	}
+
+	@Test
+	void opensCostcoSameDayProductsOnInstacart() {
+		assertEquals(URI.create("https://www.instacart.com/store/costco/products/32665-pot-roast-per-lb"), PhotoImporter.withoutSignIn(
+				URI.create("https://sameday.costco.com/store/costco/products/32665-pot-roast-per-lb?utm=x")));
+		URI other = URI.create("https://sameday.costcobusinessdelivery.com/store/costco-business-center/products/1-thighs");
+		assertEquals(other, PhotoImporter.withoutSignIn(other));
+		assertEquals(URI.create("https://sameday.costco.com/"), PhotoImporter.withoutSignIn(URI.create("https://sameday.costco.com/")));
+	}
+
+	@Test
+	void dropsTheStorefrontsDeliveryWordsFromTheName() {
+		assertEquals("Kirkland Signature USDA Choice Beef Chuck Pot Roast Boneless", PhotoImporter.productTitle(
+				"<meta property=\"og:title\" content=\"Kirkland Signature USDA Choice Beef Chuck Pot Roast Boneless Same-Day Delivery\">"));
+		assertEquals("Publix Milk, Whole", PhotoImporter.productTitle("<title>Publix Milk, Whole Same-Day Delivery or Pickup | Publix</title>"));
+		assertEquals("Same-Day Delivery Bags", PhotoImporter.withoutDeliveryWords("Same-Day Delivery Bags"));
 	}
 
 	@Test

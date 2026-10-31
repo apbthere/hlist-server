@@ -7,6 +7,7 @@ import com.abcconsulting.slme.server.model.Department;
 import com.abcconsulting.slme.server.model.Item;
 import com.abcconsulting.slme.server.model.ShoppingList;
 import com.abcconsulting.slme.server.model.ShoppingListItem;
+import com.abcconsulting.slme.server.photos.PhotoImporter;
 import com.abcconsulting.slme.server.photos.PhotoService;
 import com.abcconsulting.slme.server.photos.ProductPhotoFinder;
 import com.abcconsulting.slme.server.repository.ItemRepository;
@@ -239,21 +240,22 @@ public class ShoppingTools {
             String productName = null;
             String productBrand = null;
             photoId = null;
+            Labeled given = labeled(request.name(), request.brand(), brands.values());
             if (request.productUrl() != null && !request.productUrl().isBlank()) {
                 try {
                     PhotoService.ImportedPhoto imported = photos.importFromWeb(username, request.productUrl().strip());
                     productName = imported.title();
                     productBrand = imported.brand();
-                    String otherBrand = otherBrand(imported, request.brand());
+                    String otherBrand = otherBrand(imported, given.brand());
                     if (otherBrand != null) {
-                        warnings.add("The product page is for " + otherBrand + ", not " + request.brand()
-                                + ", so its photo wasn't used. Find the " + request.brand() + " product's page and give it "
+                        warnings.add("The product page is for " + otherBrand + ", not " + given.brand()
+                                + ", so its photo wasn't used. Find the " + given.brand() + " product's page and give it "
                                 + "to set_item_photo, or check with the user which brand they want.");
                     } else {
                         photoId = imported.photoId();
-                        if (!pageNamesBrand(imported, request.brand())) {
-                            warnings.add("The product page (\"" + imported.title() + "\") doesn't name " + request.brand()
-                                    + ". If it's another brand's product, find the " + request.brand()
+                        if (!pageNamesBrand(imported, given.brand())) {
+                            warnings.add("The product page (\"" + imported.title() + "\") doesn't name " + given.brand()
+                                    + ". If it's another brand's product, find the " + given.brand()
                                     + " product's page and give it to set_item_photo.");
                         }
                     }
@@ -262,7 +264,7 @@ public class ShoppingTools {
                     warnings.add("HList couldn't get a photo from that page (" + reason(failed) + ").");
                 }
             }
-            name = request.name() != null && !request.name().isBlank() ? request.name().strip() : productName;
+            name = given.name() != null ? given.name() : productName;
             if (name == null || name.isBlank()) {
                 throw new IllegalArgumentException("Give the item a name"
                         + (request.productUrl() == null ? "." : "; its product page didn't have one."));
@@ -270,7 +272,7 @@ public class ShoppingTools {
             if (name.length() > 255) {
                 throw new IllegalArgumentException("The name can be at most 255 characters.");
             }
-            String brandName = request.brand() != null ? request.brand() : productBrand;
+            String brandName = given.brand() != null ? given.brand() : productBrand;
             brandId = brandName == null || brandName.isBlank() ? null : brandId(brandName, brands);
             Item previous = latestNamed(username, name);
             departmentId = request.department() != null ? departmentId(request.department(), departments)
@@ -425,6 +427,28 @@ public class ShoppingTools {
             log.info("No product photo for {} ({}): {}", name, brand, failed.getMessage());
             return java.util.Optional.empty();
         }
+    }
+
+    record Labeled(String name, String brand) {
+    }
+
+    /**
+     * An assistant's name and brand as a shelf label has them. Assistants copy names from search results: "Beef Pot
+     * Roast Same-Day Delivery" is "Beef Pot Roast", "Kirkland Signature Almonds" by Kirkland Signature is "Almonds",
+     * and "Signature Almonds" by Kirkland is "Almonds" by Kirkland Signature, when the user has that brand.
+     */
+    static Labeled labeled(String name, String brand, java.util.Collection<String> knownBrands) {
+        String clean = name == null || name.isBlank() ? null : PhotoImporter.withoutDeliveryWords(name.strip());
+        if (clean == null || brand == null || brand.isBlank()) {
+            return new Labeled(clean, brand);
+        }
+        String full = brand.strip() + " " + clean;
+        return knownBrands.stream()
+                .filter(known -> normalize(known).startsWith(normalize(brand) + " "))
+                .filter(known -> !PhotoImporter.withoutBrand(full, known).equals(full))
+                .max(Comparator.comparingInt(String::length))
+                .map(known -> new Labeled(PhotoImporter.withoutBrand(full, known), known))
+                .orElseGet(() -> new Labeled(PhotoImporter.withoutBrand(clean, brand.strip()), brand));
     }
 
     /**

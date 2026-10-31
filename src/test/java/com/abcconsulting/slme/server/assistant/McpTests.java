@@ -104,6 +104,19 @@ class McpTests {
     }
 
     @Test
+    void tidiesNamesCopiedFromSearchResults() {
+        List<String> brands = List.of("Kirkland", "Kirkland Signature", "Publix");
+        assertEquals(new ShoppingTools.Labeled("Chicken Thighs, Boneless Skinless", "Kirkland Signature"),
+                ShoppingTools.labeled("Signature Chicken Thighs, Boneless Skinless", "Kirkland", brands));
+        assertEquals(new ShoppingTools.Labeled("USDA Choice Beef Chuck Pot Roast Boneless", "Kirkland Signature"),
+                ShoppingTools.labeled("Kirkland Signature USDA Choice Beef Chuck Pot Roast Boneless Same-Day Delivery", "Kirkland Signature", brands));
+        assertEquals(new ShoppingTools.Labeled("Almonds", "Kirkland"), ShoppingTools.labeled("Almonds", "Kirkland", brands));
+        assertEquals(new ShoppingTools.Labeled("Signature", "Kirkland"), ShoppingTools.labeled("Signature", "Kirkland", brands));
+        assertEquals(new ShoppingTools.Labeled("Milk, Whole", null), ShoppingTools.labeled(" Milk, Whole ", null, brands));
+        assertEquals(new ShoppingTools.Labeled(null, "Publix"), ShoppingTools.labeled(" ", "Publix", brands));
+    }
+
+    @Test
     void productPagesGivePhotosToItemsAlreadyOnTheList() throws Exception {
         String token = token(createUser());
         String page = "https://www.costco.com/p/-/bounty-paper-towels/4000346087";
