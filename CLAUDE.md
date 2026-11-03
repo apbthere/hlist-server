@@ -32,7 +32,9 @@ first. CI (`.github/workflows/ci.yml`) runs `./mvnw verify` on Java 25.
 ## Layout (`src/main/java/com/abcconsulting/slme/server/`)
 
 - `config/`: security (form login at `/api/auth/login`, persistent remember-me with `RenewableRememberMeServices`,
-  CSRF via `csrf.spa()`, passkeys), `/app/` serving with SPA fallback, scheduling.
+  CSRF via `csrf.spa()`, passkeys), `/app/` serving with SPA fallback, scheduling. `LoginThrottle` limits password
+  sign-ins (form and Basic) to 5 failures per account and 20 per client address in 15 minutes (429 with
+  Retry-After); passkeys and remember-me aren't limited. In memory, so a restart forgets it.
 - `controller/`: `/api/shopping-lists`, items, departments, brands, users, auth, `/api/version` (build
   watermark), `ApiExceptionHandler` (IllegalArgumentException → 400 with `{message}`, shown to users as is).
 - `service/ShoppingListService`: lists (newest first), items, catalog. `UserAccountService`: case-insensitive

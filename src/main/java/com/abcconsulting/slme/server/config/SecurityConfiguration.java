@@ -16,6 +16,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
@@ -155,7 +156,8 @@ public class SecurityConfiguration {
             HttpSecurity http,
             RenewableRememberMeServices rememberMeServices,
             AccessTokenService accessTokens,
-            UserDetailsService userDetailsService) throws Exception {
+            UserDetailsService userDetailsService,
+            LoginThrottle loginThrottle) throws Exception {
         // No WWW-Authenticate header, so browsers never show a Basic prompt or cache Basic credentials.
         AuthenticationEntryPoint unauthorized = new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED);
         AuthenticationSuccessHandler signedIn = (request, response, authentication) ->
@@ -212,6 +214,9 @@ public class SecurityConfiguration {
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)))
                 // Basic stays available for curl and tests; browsers use the session cookie.
                 .httpBasic(basic -> basic.authenticationEntryPoint(unauthorized))
+                // Limits password guessing at the sign-in form and through Basic (after the CSRF check).
+                .addFilterBefore(new LoginThrottleFilter(loginThrottle, "/api/auth/login"),
+                        UsernamePasswordAuthenticationFilter.class)
                 // AI assistants use /mcp with an access token (Authorization: Bearer hlist_...).
                 .addFilterBefore(new AccessTokenFilter(accessTokens, userDetailsService), BasicAuthenticationFilter.class)
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(withMcpMetadata(unauthorized)))
